@@ -3,10 +3,6 @@ import { IndicatorManager } from './indicators.js';
 import { saveData, loadData } from './pipeline.js';
 import { predictTrade } from './ml.js';
 
-/**
- * AdvancedDerivBot - A sophisticated trading bot for Deriv platform with modular candle and indicator support
- * @class
- */
 class AdvancedDerivBot {
     constructor() {
         // WebSocket connection
@@ -90,14 +86,8 @@ class AdvancedDerivBot {
     init() {
         this.setupEventListeners();
         this.updateUI();
-        this.loadHistoricalData();
         this.log('Bot initialized successfully', 'info');
-    }
-
-    /**
-     * Load historical data from data.json
-     */
-    loadHistoricalData() {
+        // Initialize historical data from data.json
         try {
             this.historicalData = loadData('trades');
             this.log(`Loaded ${this.historicalData.length} historical trades`, 'info');
@@ -367,13 +357,18 @@ class AdvancedDerivBot {
         try {
             this.currentPrice = tick.quote;
             const tickData = {
-                id: `tick_${tick.id || Date.now()}`,
                 symbol: tick.symbol,
                 price: this.currentPrice,
-                timestamp: new Date(tick.epoch * 1000).toISOString(),
+                time: new Date(tick.epoch * 1000).toISOString(),
                 volume: tick.volume || this.estimateVolume(this.currentPrice)
             };
-            saveData('ticks', tickData);
+            // Save tick to data.json
+            try {
+                saveData('ticks', tickData);
+                this.log(`Saved tick for ${tick.symbol}`, 'debug');
+            } catch (error) {
+                this.log(`Error saving tick: ${error.message}`, 'error');
+            }
 
             this.candleManager.addTick(tick.symbol, {
                 price: this.currentPrice,
@@ -383,18 +378,23 @@ class AdvancedDerivBot {
 
             const candles = this.candleManager.getCandles(tick.symbol);
             if (candles.length > 0) {
+                // Save new candle to data.json
                 const latestCandle = candles[candles.length - 1];
                 const candleData = {
-                    id: `candle_${Date.now()}`,
                     symbol: tick.symbol,
                     open: latestCandle.open,
                     high: latestCandle.high,
                     low: latestCandle.low,
                     close: latestCandle.close,
                     volume: latestCandle.volume,
-                    timestamp: new Date(latestCandle.time).toISOString()
+                    time: new Date(latestCandle.time).toISOString()
                 };
-                saveData('candles', candleData);
+                try {
+                    saveData('candles', candleData);
+                    this.log(`Saved candle for ${tick.symbol}`, 'debug');
+                } catch (error) {
+                    this.log(`Error saving candle: ${error.message}`, 'error');
+                }
 
                 this.indicatorManager.updateIndicators(candles);
                 this.indicatorManager.updateCorrelations(this.candleManager.candles);
@@ -440,9 +440,7 @@ class AdvancedDerivBot {
                 case 'mean-reversion': return this.getMeanReversionSignal();
                 case 'rsi-strategy': return this.getRSISignal();
                 case 'grid': return this.getGridSignal(symbol);
-                case
-
-System: 'arbitrage': return this.getArbitrageSignal();
+                case 'arbitrage': return this.getArbitrageSignal();
                 case 'ml-based': return this.getMLBasedSignal();
                 case 'custom': return this.getCustomSignal();
                 default: return { shouldTrade: false, tradeType: 'CALL' };
@@ -559,20 +557,22 @@ System: 'arbitrage': return this.getArbitrageSignal();
     }
 
     getMLBasedSignal() {
-        if (this.historicalData.length < 50) return { shouldTrade: false };
-
         const indicators = this.indicatorManager.getIndicators();
-        const mlIndicators = {
-            rsi: indicators.rsi,
-            macd: indicators.macd.histogram,
-            volatility: indicators.volatility
-        };
-
-        const mlSignal = predictTrade(mlIndicators);
-        return {
-            shouldTrade: mlSignal.shouldTrade,
-            tradeType: mlSignal.tradeType
-        };
+        try {
+            const mlIndicators = {
+                rsi: indicators.rsi,
+                macd: indicators.macd.histogram,
+                volatility: indicators.volatility
+            };
+            const prediction = predictTrade(mlIndicators);
+            return {
+                shouldTrade: prediction.shouldTrade,
+                tradeType: prediction.tradeType
+            };
+        } catch (error) {
+            this.log(`Error in ML prediction: ${error.message}`, 'error');
+            return { shouldTrade: false };
+        }
     }
 
     getCustomSignal() {
@@ -805,11 +805,11 @@ System: 'arbitrage': return this.getArbitrageSignal();
 
             notifyContractPurchase({
                 symbol: "R_100",
-                contractType: "CALL",
+                contractType: this.activeContract.type.includes('CALL') ? 'CALL' : 'PUT',
                 contractId: buy.contract_id,
                 buyPrice: buy.buy_price,
                 expectedPayout: 19.50,
-                duration: "60s",
+                duration: `${this.predictDuration()}s`,
                 entrySpot: this.currentPrice,
                 barrier: 1235.00
             });
@@ -855,11 +855,12 @@ System: 'arbitrage': return this.getArbitrageSignal();
                 this.adaptiveCooldown();
             }
 
+            // Save trade to data.json
             const tradeData = {
                 id: `trade_${Date.now()}`,
                 symbol: this.activeContract.symbol,
                 result: this.lastTradeResult,
-                pnl: parseFloat(pnl.toFixed(2)),
+                pnl: pnl.toFixed(2),
                 indicators: {
                     rsi: this.indicatorManager.getIndicators().rsi,
                     macd: this.indicatorManager.getIndicators().macd.histogram,
@@ -867,7 +868,12 @@ System: 'arbitrage': return this.getArbitrageSignal();
                 },
                 timestamp: new Date().toISOString()
             };
-            saveData('trades', tradeData);
+            try {
+                saveData('trades', tradeData);
+                this.log(`Saved trade ${tradeData.id}`, 'debug');
+            } catch (error) {
+                this.log(`Error saving trade: ${error.message}`, 'error');
+            }
 
             this.updateStrategyStats(this.config.strategy, this.lastTradeResult);
             this.historicalData.push({
@@ -885,42 +891,42 @@ System: 'arbitrage': return this.getArbitrageSignal();
     }
 
     runBacktest() {
-        const trades = loadData('trades', 100); // Use short-term data (last 100 trades)
-        if (trades.length < 50) {
-            this.log('Insufficient historical data for backtesting', 'error');
-            return;
-        }
-
-        let simulatedPnL = 0;
-        let simulatedTrades = 0;
-        let simulatedWins = 0;
-
-        trades.forEach((trade, i) => {
-            if (i < 26) return;
-            this.candleManager.addHistoricalTick(this.config.symbol, {
-                price: trade.price,
-                time: new Date(trade.timestamp),
-                volume: this.estimateVolume(trade.price)
-            });
-            const candles = this.candleManager.getCandles(this.config.symbol);
-            this.indicatorManager.updateIndicators(candles);
-            const signal = this.getTradeSignal(this.config.symbol);
-            if (signal.shouldTrade) {
-                simulatedTrades++;
-                const indicators = this.indicatorManager.getIndicators();
-                const slippage = indicators.volatility * 0.01;
-                const fee = this.currentStake * 0.01;
-                const outcome = trade.result;
-                const simulatedStake = parseFloat(this.calculateOptimalStake().toFixed(1));
-                const profit = outcome === 'win' ? simulatedStake * 0.85 - fee : -simulatedStake - fee;
-                simulatedPnL += profit;
-                if (outcome === 'win') simulatedWins++;
-                this.log(`Backtest trade: ${signal.tradeType} - ${outcome}, P&L: $${profit.toFixed(2)}`, 'info');
+        try {
+            const historicalTrades = loadData('trades', 100); // Load short-term trades
+            if (historicalTrades.length < 50) {
+                this.log('Insufficient historical data for backtesting', 'error');
+                return;
             }
-        });
 
-        const winRate = simulatedTrades > 0 ? (simulatedWins / simulatedTrades * 100).toFixed(1) : 0;
-        this.log(`Backtest completed: ${simulatedTrades} trades, ${winRate}% win rate, P&L: $${simulatedPnL.toFixed(2)}`, 'success');
+            let simulatedPnL = 0;
+            let simulatedTrades = 0;
+            let simulatedWins = 0;
+
+            this.historicalData.forEach((tick, i) => {
+                if (i < 26) return;
+                this.candleManager.addHistoricalTick(this.config.symbol, tick);
+                const candles = this.candleManager.getCandles(this.config.symbol);
+                this.indicatorManager.updateIndicators(candles);
+                const signal = this.getTradeSignal(this.config.symbol);
+                if (signal.shouldTrade) {
+                    simulatedTrades++;
+                    const indicators = this.indicatorManager.getIndicators();
+                    const slippage = indicators.volatility * 0.01;
+                    const fee = this.currentStake * 0.01;
+                    const outcome = this.simulateTradeOutcome(signal.tradeType, candles, i);
+                    const simulatedStake = parseFloat(this.calculateOptimalStake().toFixed(1));
+                    const profit = outcome === 'win' ? simulatedStake * 0.85 - fee : -simulatedStake - fee;
+                    simulatedPnL += profit;
+                    if (outcome === 'win') simulatedWins++;
+                    this.log(`Backtest trade: ${signal.tradeType} - ${outcome}, P&L: $${profit.toFixed(2)}`, 'info');
+                }
+            });
+
+            const winRate = simulatedTrades > 0 ? (simulatedWins / simulatedTrades * 100).toFixed(1) : 0;
+            this.log(`Backtest completed: ${simulatedTrades} trades, ${winRate}% win rate, P&L: $${simulatedPnL.toFixed(2)}`, 'success');
+        } catch (error) {
+            this.log(`Backtest error: ${error.message}`, 'error');
+        }
     }
 
     simulateTradeOutcome(tradeType, candles, index) {

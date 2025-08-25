@@ -1,13 +1,12 @@
+import { CandleManager } from './candles.js';
+import { IndicatorManager } from './indicators.js';
+import { saveData, loadData } from './pipeline.js';
+import { predictTrade } from './ml.js';
+
 /**
  * AdvancedDerivBot - A sophisticated trading bot for Deriv platform with modular candle and indicator support
  * @class
  */
-import { CandleManager } from './candles.js';
-import { IndicatorManager } from './indicators.js';
-import { saveTickData, saveCandleData, saveTradeData, loadDataset } from './mlpipeline.js';
-import { trainModel, predict } from './ml.js';
-import { calculateIntelligenceLevel, getKnowledgeStatus } from './knowledge.js';
-
 class AdvancedDerivBot {
     constructor() {
         // WebSocket connection
@@ -18,7 +17,7 @@ class AdvancedDerivBot {
         this.apiToken = null;
         this.connectionRetries = 0;
         this.maxRetries = 3;
-        this.debugMode = true; // Enable verbose logging for debugging
+        this.debugMode = true;
 
         // Trading statistics
         this.balance = 0;
@@ -41,7 +40,7 @@ class AdvancedDerivBot {
         this.config = {
             strategy: 'martingale',
             symbol: 'R_10',
-            symbols: ['R_10', 'R_25', 'R_50', 'R_75', 'R_100'], // Enhanced: Added more symbols
+            symbols: ['R_10'],
             tradeType: 'CALL',
             duration: 60,
             maxLoss: 50,
@@ -85,31 +84,28 @@ class AdvancedDerivBot {
         ];
         this.correlations = this.indicatorManager.getCorrelations();
 
-        // ML-related properties
-        this.mlModel = null;
-        this.sessionId = `session_${Date.now()}`; // Unique session ID for trades
-        this.mlConfidence = 0; // Average confidence
-        this.intelligenceLevel = 0;
-
-        // Enhanced: Symbol-specific risk management
-        this.symbolRisk = {};
-
         this.init();
     }
 
-    /**
-     * Initialize bot components and event listeners
-     */
     init() {
         this.setupEventListeners();
         this.updateUI();
+        this.loadHistoricalData();
         this.log('Bot initialized successfully', 'info');
-        this.trainMLModel(); // Initial training if data available
     }
 
     /**
-     * Setup all event listeners for UI controls
+     * Load historical data from data.json
      */
+    loadHistoricalData() {
+        try {
+            this.historicalData = loadData('trades');
+            this.log(`Loaded ${this.historicalData.length} historical trades`, 'info');
+        } catch (error) {
+            this.log(`Error loading historical data: ${error.message}`, 'error');
+        }
+    }
+
     setupEventListeners() {
         const addListener = (id, event, handler) => {
             const element = document.getElementById(id);
@@ -173,9 +169,6 @@ class AdvancedDerivBot {
         });
     }
 
-    /**
-     * Update trading configuration from UI inputs
-     */
     updateConfig() {
         const getValue = (id, type = 'string') => {
             const element = document.getElementById(id);
@@ -195,7 +188,7 @@ class AdvancedDerivBot {
 
         try {
             this.config.strategy = getValue('strategy-select') || this.config.strategy;
-            this.config.symbols = getValue('symbols').slice(0, 5) || this.config.symbols; // Enhanced: Limit to 5 symbols
+            this.config.symbols = getValue('symbols') || this.config.symbols;
             this.config.symbol = this.config.symbols[0] || 'R_10';
             this.config.duration = getValue('duration', 'integer') || this.config.duration;
             this.config.maxLoss = getValue('max-loss', 'number') || this.config.maxLoss;
@@ -226,9 +219,6 @@ class AdvancedDerivBot {
         }
     }
 
-    /**
-     * Establish WebSocket connection to Deriv API
-     */
     async connect() {
         this.log('Initiating connection...', 'info');
         if (!this.appId || isNaN(this.appId)) {
@@ -256,7 +246,7 @@ class AdvancedDerivBot {
 
             this.ws.onopen = () => {
                 this.isConnected = true;
-                this.connectionRetries = 0; // Reset retries on success
+                this.connectionRetries = 0;
                 this.updateConnectionStatus('Connected', true);
                 this.log('WebSocket connected successfully', 'success');
 
@@ -307,9 +297,6 @@ class AdvancedDerivBot {
         }
     }
 
-    /**
-     * Authenticate with Deriv API using token
-     */
     authenticate() {
         this.sendMessage({
             authorize: this.apiToken,
@@ -317,9 +304,6 @@ class AdvancedDerivBot {
         });
     }
 
-    /**
-     * Request account balance
-     */
     requestBalance() {
         this.sendMessage({
             balance: 1,
@@ -327,17 +311,7 @@ class AdvancedDerivBot {
         });
     }
 
-    /**
-     * Subscribe to market tick data for a symbol
-     * @param {string} symbol - Market symbol
-     */
     subscribeToTicks(symbol) {
-        this.sendMessage({
-            ticks_history: symbol,
-            count: 50,
-            end: "latest",
-            req_id: this.generateReqId()
-        });
         this.sendMessage({
             ticks: symbol,
             subscribe: 1,
@@ -346,10 +320,6 @@ class AdvancedDerivBot {
         this.candleManager.initializeSymbol(symbol);
     }
 
-    /**
-     * Handle incoming WebSocket messages
-     * @param {Object} data - Message data from API
-     */
     handleMessage(data) {
         if (data.error) {
             const errorMsg = `API Error: ${data.error.message} (code: ${data.error.code}, req_id: ${data.req_id || 'unknown'})`;
@@ -387,22 +357,24 @@ class AdvancedDerivBot {
         }
     }
 
-    /**
-     * Adjust stake and retry if API rejects due to invalid stake
-     */
     adjustStakeForRetry() {
         this.currentStake = parseFloat(Math.max(0.60, this.currentStake - 0.1).toFixed(1));
         this.log(`Retrying with adjusted stake: $${this.currentStake}`, 'warning');
         this.executeTrade(this.config.tradeType, this.config.symbol);
     }
 
-    /**
-     * Process market tick data
-     * @param {Object} tick - Tick data from API
-     */
     processTick(tick) {
         try {
             this.currentPrice = tick.quote;
+            const tickData = {
+                id: `tick_${tick.id || Date.now()}`,
+                symbol: tick.symbol,
+                price: this.currentPrice,
+                timestamp: new Date(tick.epoch * 1000).toISOString(),
+                volume: tick.volume || this.estimateVolume(this.currentPrice)
+            };
+            saveData('ticks', tickData);
+
             this.candleManager.addTick(tick.symbol, {
                 price: this.currentPrice,
                 time: new Date(tick.epoch * 1000),
@@ -411,23 +383,25 @@ class AdvancedDerivBot {
 
             const candles = this.candleManager.getCandles(tick.symbol);
             if (candles.length > 0) {
+                const latestCandle = candles[candles.length - 1];
+                const candleData = {
+                    id: `candle_${Date.now()}`,
+                    symbol: tick.symbol,
+                    open: latestCandle.open,
+                    high: latestCandle.high,
+                    low: latestCandle.low,
+                    close: latestCandle.close,
+                    volume: latestCandle.volume,
+                    timestamp: new Date(latestCandle.time).toISOString()
+                };
+                saveData('candles', candleData);
+
                 this.indicatorManager.updateIndicators(candles);
                 this.indicatorManager.updateCorrelations(this.candleManager.candles);
-                updatePriceChart(candles, tick.symbol); // Update chart
-
-                // Save tick and candle data to Firebase
-                saveTickData(tick.symbol, {
-                    price: this.currentPrice,
-                    time: new Date(tick.epoch * 1000),
-                    volume: tick.volume || this.estimateVolume(this.currentPrice)
-                });
-                saveCandleData(tick.symbol, this.config.candleTimeframe, candles[candles.length - 1]);
+                updatePriceChart(candles, tick.symbol);
             }
 
-            if (this.config.strategy === 'arbitrage') {
-                // Enhanced: Evaluate all symbols for arbitrage
-                this.evaluateTradeSignal(tick.symbol);
-            } else if (tick.symbol === this.config.symbol && this.isTrading && !this.activeContract && !this.isPaused) {
+            if (tick.symbol === this.config.symbol && this.isTrading && !this.activeContract && !this.isPaused) {
                 this.evaluateTradeSignal(tick.symbol);
             }
 
@@ -437,11 +411,6 @@ class AdvancedDerivBot {
         }
     }
 
-    /**
-     * Estimate volume when Deriv API doesn't provide it
-     * @param {number} currentPrice - Current price
-     * @returns {number} Estimated volume
-     */
     estimateVolume(currentPrice) {
         const prices = this.candleManager.getCandles(this.config.symbol).map(c => c.close);
         if (prices.length < 2) return 1;
@@ -449,24 +418,15 @@ class AdvancedDerivBot {
         return Math.max(1, Math.round(priceChange * 1000));
     }
 
-    /**
-     * Evaluate trading signals for a symbol
-     * @param {string} symbol - Market symbol
-     */
     evaluateTradeSignal(symbol) {
         if (Date.now() - this.lastTradeTime < this.minTradeInterval || this.isPaused) return;
 
         const signal = this.getTradeSignal(symbol);
-        if (signal.shouldTrade && this.shouldExecuteTrade(symbol)) {
-            this.executeTrade(signal.tradeType, signal.symbol || symbol);
+        if (signal.shouldTrade) {
+            this.executeTrade(signal.tradeType, symbol);
         }
     }
 
-    /**
-     * Get trading signal based on strategy and candle patterns
-     * @param {string} symbol - Market symbol
-     * @returns {Object} Trading signal
-     */
     getTradeSignal(symbol) {
         if (this.config.useDynamicSwitching) {
             this.config.strategy = this.selectBestStrategy();
@@ -480,7 +440,9 @@ class AdvancedDerivBot {
                 case 'mean-reversion': return this.getMeanReversionSignal();
                 case 'rsi-strategy': return this.getRSISignal();
                 case 'grid': return this.getGridSignal(symbol);
-                case 'arbitrage': return this.getArbitrageSignal();
+                case
+
+System: 'arbitrage': return this.getArbitrageSignal();
                 case 'ml-based': return this.getMLBasedSignal();
                 case 'custom': return this.getCustomSignal();
                 default: return { shouldTrade: false, tradeType: 'CALL' };
@@ -500,12 +462,6 @@ class AdvancedDerivBot {
         return signal;
     }
 
-    /**
-     * Confirm trade signal with candle patterns
-     * @param {string} tradeType - Trade type (CALL/PUT)
-     * @param {string} pattern - Detected candle pattern
-     * @returns {boolean} Whether signal is confirmed
-     */
     confirmSignalWithPattern(tradeType, pattern) {
         if (!pattern) return false;
         return (
@@ -515,26 +471,14 @@ class AdvancedDerivBot {
         );
     }
 
-    /**
-     * Get Martingale strategy signal
-     * @returns {Object} Trading signal
-     */
     getMartingaleSignal() {
         return this.getRSISignal();
     }
 
-    /**
-     * Get D'Alembert strategy signal
-     * @returns {Object} Trading signal
-     */
     getDalembertSignal() {
         return this.getRSISignal();
     }
 
-    /**
-     * Get Trend Following strategy signal
-     * @returns {Object} Trading signal
-     */
     getTrendFollowSignal() {
         const indicators = this.indicatorManager.getIndicators();
         const candles = this.candleManager.getCandles(this.config.symbol);
@@ -547,10 +491,6 @@ class AdvancedDerivBot {
         };
     }
 
-    /**
-     * Get Mean Reversion strategy signal
-     * @returns {Object} Trading signal
-     */
     getMeanReversionSignal() {
         const indicators = this.indicatorManager.getIndicators();
         const candles = this.candleManager.getCandles(this.config.symbol);
@@ -568,10 +508,6 @@ class AdvancedDerivBot {
         return { shouldTrade: false };
     }
 
-    /**
-     * Get RSI strategy signal
-     * @returns {Object} Trading signal
-     */
     getRSISignal() {
         const indicators = this.indicatorManager.getIndicators();
         if (indicators.rsi === 0) return { shouldTrade: false };
@@ -582,11 +518,6 @@ class AdvancedDerivBot {
         };
     }
 
-    /**
-     * Get Grid Trading strategy signal
-     * @param {string} symbol - Market symbol
-     * @returns {Object} Trading signal
-     */
     getGridSignal(symbol) {
         const indicators = this.indicatorManager.getIndicators();
         const candles = this.candleManager.getCandles(symbol);
@@ -603,85 +534,47 @@ class AdvancedDerivBot {
         };
     }
 
-    /**
-     * Get Arbitrage strategy signal (Enhanced for multiple symbols)
-     * @returns {Object} Trading signal
-     */
     getArbitrageSignal() {
         if (this.config.symbols.length < 2) return { shouldTrade: false };
 
-        let bestSignal = { shouldTrade: false };
-        let maxSpread = 0;
+        const symbol1 = this.config.symbols[0];
+        const symbol2 = this.config.symbols[1];
+        const candles1 = this.candleManager.getCandles(symbol1).slice(-50);
+        const candles2 = this.candleManager.getCandles(symbol2).slice(-50);
 
-        // Compare all pairs of symbols
-        for (let i = 0; i < this.config.symbols.length - 1; i++) {
-            for (let j = i + 1; j < this.config.symbols.length; j++) {
-                const symbol1 = this.config.symbols[i];
-                const symbol2 = this.config.symbols[j];
-                const candles1 = this.candleManager.getCandles(symbol1).slice(-20); // Reduced to 20 candles
-                const candles2 = this.candleManager.getCandles(symbol2).slice(-20);
+        if (candles1.length < 50 || candles2.length < 50) return { shouldTrade: false };
 
-                if (candles1.length < 20 || candles2.length < 20) continue;
+        const price1 = candles1[candles1.length - 1].close;
+        const price2 = candles2[candles2.length - 1].close;
+        const spread = Math.abs(price1 - price2) / Math.min(price1, price2);
 
-                const price1 = candles1[candles1.length - 1].close;
-                const price2 = candles2[candles2.length - 1].close;
-                const spread = Math.abs(price1 - price2) / Math.min(price1, price2);
-
-                if (spread > 0.005 && spread > maxSpread) { // Enhanced: Lowered threshold to 0.5%
-                    maxSpread = spread;
-                    bestSignal = {
-                        shouldTrade: true,
-                        tradeType: price1 > price2 ? 'PUT' : 'CALL',
-                        symbol: price1 > price2 ? symbol1 : symbol2
-                    };
-                }
-            }
+        if (spread > 0.01) {
+            return {
+                shouldTrade: true,
+                tradeType: price1 > price2 ? 'PUT' : 'CALL',
+                symbol: price1 > price2 ? symbol1 : symbol2
+            };
         }
-        return bestSignal;
+        return { shouldTrade: false };
     }
 
-    /**
-     * Get Machine Learning-based strategy signal
-     * @returns {Object} Trading signal
-     */
     getMLBasedSignal() {
         if (this.historicalData.length < 50) return { shouldTrade: false };
 
-        const recentTrades = this.historicalData.slice(-10);
-        const winCount = recentTrades.filter(t => t.result === 'win').length;
-        const lossCount = recentTrades.filter(t => t.result === 'loss').length;
         const indicators = this.indicatorManager.getIndicators();
+        const mlIndicators = {
+            rsi: indicators.rsi,
+            macd: indicators.macd.histogram,
+            volatility: indicators.volatility
+        };
 
-        // Use ML model prediction
-        if (this.mlModel) {
-            const features = [indicators.rsi, indicators.macd.histogram, indicators.volatility, indicators.adx];
-            const mlSignal = predict(this.mlModel, features);
-            this.mlConfidence = mlSignal.confidence; // Update confidence
-            return {
-                shouldTrade: mlSignal.confidence > 0.7,
-                tradeType: mlSignal.prediction === 'bullish' ? 'CALL' : 'PUT'
-            };
-        }
-
-        // Fallback if no model
+        const mlSignal = predictTrade(mlIndicators);
         return {
-            shouldTrade: winCount > lossCount && indicators.rsi < 40 && indicators.sentiment > 0,
-            tradeType: 'CALL'
+            shouldTrade: mlSignal.shouldTrade,
+            tradeType: mlSignal.tradeType
         };
     }
 
-    /**
-     * Placeholder for fetching external ML signal
-     * @returns {Object|null} ML signal
-     */
-    getExternalMLSignal() {
-        return null; // Example: { prediction: 'bullish', confidence: 0.85 }
-    }
-
-    /**
-     * Get Custom strategy signal based on user-defined rules
-     * @returns {Object} Trading signal
-     */
     getCustomSignal() {
         if (!this.config.customStrategyRules.length) return { shouldTrade: false };
 
@@ -710,9 +603,6 @@ class AdvancedDerivBot {
         };
     }
 
-    /**
-     * Adjust stake size based on position sizing strategy
-     */
     adjustStakeBasedOnStrategy() {
         if (this.lastTradeResult === null) {
             this.currentStake = parseFloat(this.initialStake.toFixed(1));
@@ -754,10 +644,6 @@ class AdvancedDerivBot {
         this.log(`Adjusted stake: $${this.currentStake}`, 'debug');
     }
 
-    /**
-     * Sophisticatedly predict trade duration based on market conditions
-     * @returns {number} Predicted duration in seconds
-     */
     predictDuration() {
         const indicators = this.indicatorManager.getIndicators();
         const baseDuration = this.config.duration || 60;
@@ -768,19 +654,13 @@ class AdvancedDerivBot {
         return Math.max(5, Math.min(600, predictedDuration));
     }
 
-    /**
-     * Execute a trade with specified parameters
-     * @param {string} tradeType - Type of trade (CALL/PUT)
-     * @param {string} symbol - Market symbol
-     */
     async executeTrade(tradeType, symbol) {
-        if (!this.isConnected || !this.isTrading || !this.shouldExecuteTrade(symbol) || this.isPaused) {
+        if (!this.isConnected || !this.isTrading || !this.shouldExecuteTrade() || this.isPaused) {
             this.log(`Cannot execute trade: connected=${this.isConnected}, trading=${this.isTrading}, paused=${this.isPaused}`, 'warning');
             return;
         }
 
         this.adjustStakeBasedOnStrategy();
-
         const predictedDuration = this.predictDuration();
 
         const proposalRequest = {
@@ -800,21 +680,9 @@ class AdvancedDerivBot {
         this.log(`Proposal requested: ${tradeType} ${symbol || this.config.symbol} - $${this.currentStake} for ${predictedDuration}s`, 'info');
     }
 
-    /**
-     * Check if trade execution is allowed based on risk management
-     * @param {string} symbol - Market symbol
-     * @returns {boolean} Whether trade should be executed
-     */
-    shouldExecuteTrade(symbol) {
+    shouldExecuteTrade() {
         if (this.checkMarketConditions()) {
             this.adaptiveCooldown();
-            return false;
-        }
-
-        // Enhanced: Symbol-specific risk management
-        this.symbolRisk[symbol] = this.symbolRisk[symbol] || { trades: 0, loss: 0 };
-        if (this.symbolRisk[symbol].trades >= 50) {
-            this.log(`Max trades reached for ${symbol}`, 'warning');
             return false;
         }
 
@@ -866,9 +734,6 @@ class AdvancedDerivBot {
         return true;
     }
 
-    /**
-     * Adaptive cooldown logic based on market conditions
-     */
     adaptiveCooldown() {
         if (this.pauseExtensions >= this.maxPauseExtensions) {
             this.log('Maximum pause extensions reached; resuming trading', 'info');
@@ -900,11 +765,6 @@ class AdvancedDerivBot {
         }
     }
 
-    /**
-     * Check for dynamic exit conditions
-     * @param {Object} contract - Contract update data
-     * @returns {boolean} Whether to exit early
-     */
     checkDynamicExit(contract) {
         if (!contract.profit || !contract.current_spot) return false;
 
@@ -921,10 +781,6 @@ class AdvancedDerivBot {
         return false;
     }
 
-    /**
-     * Handle trade proposal response
-     * @param {Object} proposal - Proposal data from API
-     */
     handleProposal(proposal) {
         if (proposal.id) {
             this.sendMessage({
@@ -936,10 +792,6 @@ class AdvancedDerivBot {
         }
     }
 
-    /**
-     * Handle contract purchase response
-     * @param {Object} buy - Buy response from API
-     */
     handleBuy(buy) {
         if (buy.contract_id) {
             this.activeContract = {
@@ -952,14 +804,14 @@ class AdvancedDerivBot {
             };
 
             notifyContractPurchase({
-                symbol: buy.symbol,
-                contractType: buy.shortcode.includes('CALL') ? 'CALL' : 'PUT',
+                symbol: "R_100",
+                contractType: "CALL",
                 contractId: buy.contract_id,
                 buyPrice: buy.buy_price,
-                expectedPayout: buy.payout,
-                duration: this.activeContract.duration || '60s',
+                expectedPayout: 19.50,
+                duration: "60s",
                 entrySpot: this.currentPrice,
-                barrier: buy.barrier || 0
+                barrier: 1235.00
             });
 
             this.sendMessage({
@@ -973,10 +825,6 @@ class AdvancedDerivBot {
         }
     }
 
-    /**
-     * Handle contract status updates
-     * @param {Object} contract - Contract update data
-     */
     handleContractUpdate(contract) {
         if (!this.activeContract) return;
 
@@ -991,11 +839,6 @@ class AdvancedDerivBot {
         if (contract.is_sold) {
             this.totalTrades++;
             this.totalPnL += pnl;
-
-            // Enhanced: Update symbol-specific risk
-            this.symbolRisk[this.activeContract.symbol] = this.symbolRisk[this.activeContract.symbol] || { trades: 0, loss: 0 };
-            this.symbolRisk[this.activeContract.symbol].trades++;
-            this.symbolRisk[this.activeContract.symbol].loss += isWin ? 0 : Math.abs(pnl);
 
             if (isWin) {
                 this.wins++;
@@ -1012,34 +855,38 @@ class AdvancedDerivBot {
                 this.adaptiveCooldown();
             }
 
-            this.updateStrategyStats(this.config.strategy, this.lastTradeResult);
             const tradeData = {
+                id: `trade_${Date.now()}`,
+                symbol: this.activeContract.symbol,
+                result: this.lastTradeResult,
+                pnl: parseFloat(pnl.toFixed(2)),
+                indicators: {
+                    rsi: this.indicatorManager.getIndicators().rsi,
+                    macd: this.indicatorManager.getIndicators().macd.histogram,
+                    volatility: this.indicatorManager.getIndicators().volatility
+                },
+                timestamp: new Date().toISOString()
+            };
+            saveData('trades', tradeData);
+
+            this.updateStrategyStats(this.config.strategy, this.lastTradeResult);
+            this.historicalData.push({
                 result: this.lastTradeResult,
                 pnl,
                 symbol: this.activeContract.symbol,
                 timestamp: new Date(),
                 price: this.currentPrice
-            };
-            this.historicalData.push(tradeData);
-
-            // Save trade data to Firebase with indicators
-            const indicators = this.indicatorManager.getIndicators();
-            saveTradeData(this.sessionId, tradeData, indicators);
+            });
 
             this.activeContract = null;
             this.requestBalance();
             this.updateUI();
-
-            // Retrain ML model after trade
-            this.trainMLModel();
         }
     }
 
-    /**
-     * Run backtest on historical data
-     */
     runBacktest() {
-        if (this.historicalData.length < 50) {
+        const trades = loadData('trades', 100); // Use short-term data (last 100 trades)
+        if (trades.length < 50) {
             this.log('Insufficient historical data for backtesting', 'error');
             return;
         }
@@ -1048,40 +895,34 @@ class AdvancedDerivBot {
         let simulatedTrades = 0;
         let simulatedWins = 0;
 
-        // Enhanced: Backtest across all selected symbols
-        this.config.symbols.forEach(symbol => {
-            this.historicalData.forEach((tick, i) => {
-                if (i < 26) return;
-                this.candleManager.addHistoricalTick(symbol, tick);
-                const candles = this.candleManager.getCandles(symbol);
-                this.indicatorManager.updateIndicators(candles);
-                const signal = this.getTradeSignal(symbol);
-                if (signal.shouldTrade) {
-                    simulatedTrades++;
-                    const indicators = this.indicatorManager.getIndicators();
-                    const slippage = indicators.volatility * 0.01;
-                    const fee = this.currentStake * 0.01;
-                    const outcome = this.simulateTradeOutcome(signal.tradeType, candles, i);
-                    const simulatedStake = parseFloat(this.calculateOptimalStake().toFixed(1));
-                    const profit = outcome === 'win' ? simulatedStake * 0.85 - fee : -simulatedStake - fee;
-                    simulatedPnL += profit;
-                    if (outcome === 'win') simulatedWins++;
-                    this.log(`Backtest trade: ${signal.tradeType} ${symbol} - ${outcome}, P&L: $${profit.toFixed(2)}`, 'info');
-                }
+        trades.forEach((trade, i) => {
+            if (i < 26) return;
+            this.candleManager.addHistoricalTick(this.config.symbol, {
+                price: trade.price,
+                time: new Date(trade.timestamp),
+                volume: this.estimateVolume(trade.price)
             });
+            const candles = this.candleManager.getCandles(this.config.symbol);
+            this.indicatorManager.updateIndicators(candles);
+            const signal = this.getTradeSignal(this.config.symbol);
+            if (signal.shouldTrade) {
+                simulatedTrades++;
+                const indicators = this.indicatorManager.getIndicators();
+                const slippage = indicators.volatility * 0.01;
+                const fee = this.currentStake * 0.01;
+                const outcome = trade.result;
+                const simulatedStake = parseFloat(this.calculateOptimalStake().toFixed(1));
+                const profit = outcome === 'win' ? simulatedStake * 0.85 - fee : -simulatedStake - fee;
+                simulatedPnL += profit;
+                if (outcome === 'win') simulatedWins++;
+                this.log(`Backtest trade: ${signal.tradeType} - ${outcome}, P&L: $${profit.toFixed(2)}`, 'info');
+            }
         });
 
         const winRate = simulatedTrades > 0 ? (simulatedWins / simulatedTrades * 100).toFixed(1) : 0;
         this.log(`Backtest completed: ${simulatedTrades} trades, ${winRate}% win rate, P&L: $${simulatedPnL.toFixed(2)}`, 'success');
     }
 
-    /**
-     * Simulate trade outcome for backtesting
-     * @param {string} tradeType - Trade type
-     * @param {Object[]} candles - Candle data
-     * @param {number} index - Current index
-     * @returns {string} Outcome (win/loss)
-     */
     simulateTradeOutcome(tradeType, candles, index) {
         if (index >= candles.length - 1) return 'loss';
         const futurePrice = candles[index + 1].close;
@@ -1090,9 +931,6 @@ class AdvancedDerivBot {
                (tradeType === 'PUT' && futurePrice < currentPrice) ? 'win' : 'loss';
     }
 
-    /**
-     * Start automated trading
-     */
     startTrading() {
         if (!this.isConnected) {
             this.log('Please connect to Deriv first', 'error');
@@ -1116,9 +954,6 @@ class AdvancedDerivBot {
         this.log(`Risk Management: Max Loss: $${this.config.maxLoss}, Max Profit: $${this.config.maxProfit}, Max Drawdown: ${this.config.maxDrawdown}%`, 'info');
     }
 
-    /**
-     * Stop automated trading
-     */
     stopTrading() {
         this.isTrading = false;
         this.isPaused = false;
@@ -1131,9 +966,6 @@ class AdvancedDerivBot {
         this.log(`Session Summary: ${this.totalTrades} trades, ${winRate}% win rate, P&L: $${this.totalPnL.toFixed(2)}`, 'info');
     }
 
-    /**
-     * Reset trading statistics
-     */
     resetStats() {
         this.totalTrades = 0;
         this.wins = 0;
@@ -1146,17 +978,11 @@ class AdvancedDerivBot {
         this.historicalData = [];
         this.strategyStats = {};
         this.pauseExtensions = 0;
-        this.symbolRisk = {}; // Enhanced: Reset symbol-specific risk
 
         this.updateUI();
         this.log('Statistics reset', 'info');
     }
 
-    /**
-     * Update connection status UI
-     * @param {string} status - Connection status message
-     * @param {boolean} connected - Connection state
-     */
     updateConnectionStatus(status, connected) {
         try {
             const statusElement = document.getElementById('connection-status');
@@ -1179,9 +1005,6 @@ class AdvancedDerivBot {
         }
     }
 
-    /**
-     * Update UI with current trading statistics and market data
-     */
     updateUI() {
         try {
             const indicators = this.indicatorManager.getIndicators();
@@ -1189,7 +1012,6 @@ class AdvancedDerivBot {
             const candles = this.candleManager.getCandles(this.config.symbol);
             const latestCandle = candles[candles.length - 1] || {};
 
-            // Volatility trend calculation
             const recentCandles = candles.slice(-10);
             const volatilityTrend = recentCandles.length >= 2 ? 
                 (indicators.volatility > this.indicatorManager.calculateVolatility(recentCandles.slice(0, -1)) ? 'Rising' : 'Falling') : 'Stable';
@@ -1234,8 +1056,7 @@ class AdvancedDerivBot {
                 })?.description || 'None' : 'None',
                 'volatility-spike': this.detectVolatilitySpike() ? 'Yes' : 'No',
                 'volatility-trend': volatilityTrend,
-                'market-trend': this.detectMarketTrend(),
-                'ml-intelligence': `ML Intelligence Level: ${this.intelligenceLevel} - ${getKnowledgeStatus(this.intelligenceLevel)}`
+                'market-trend': this.detectMarketTrend()
             };
 
             Object.entries(elements).forEach(([id, value]) => {
@@ -1254,23 +1075,6 @@ class AdvancedDerivBot {
                 this.log('Error: Total PnL element not found', 'error');
             }
 
-            // Enhanced: Display indicators for all selected symbols
-            const symbolDataDiv = document.getElementById('symbol-data');
-            if (symbolDataDiv) {
-                symbolDataDiv.innerHTML = this.config.symbols.map(symbol => {
-                    const indicators = this.indicatorManager.getIndicators(symbol);
-                    const candles = this.candleManager.getCandles(symbol);
-                    const latestCandle = candles[candles.length - 1] || {};
-                    return `
-                        <h3>${symbol}</h3>
-                        <p>Price: ${latestCandle.close?.toFixed(5) || '-'}</p>
-                        <p>RSI: ${indicators.rsi?.toFixed(2) || '-'}</p>
-                        <p>ADX: ${indicators.adx?.toFixed(2) || '-'}</p>
-                    `;
-                }).join('');
-            }
-
-            // Update strategy stats table
             const strategyBody = document.getElementById('strategy-stats-body');
             if (strategyBody) {
                 strategyBody.innerHTML = '';
@@ -1290,7 +1094,6 @@ class AdvancedDerivBot {
                 this.log('Error: Strategy stats table body not found', 'error');
             }
 
-            // Update correlation table
             const correlationBody = document.getElementById('correlation-body');
             if (correlationBody) {
                 correlationBody.innerHTML = '';
@@ -1310,11 +1113,6 @@ class AdvancedDerivBot {
         }
     }
 
-    /**
-     * Log messages to UI
-     * @param {string} message - Log message
-     * @param {string} type - Log type (info, success, warning, error, debug)
-     */
     log(message, type = 'info') {
         if (type === 'debug' && !this.debugMode) return;
 
@@ -1338,9 +1136,6 @@ class AdvancedDerivBot {
         if (entries.length > 100) entries[0].remove();
     }
 
-    /**
-     * Clear log messages
-     */
     clearLog() {
         const logContainer = document.getElementById('log-content');
         if (logContainer) {
@@ -1351,10 +1146,6 @@ class AdvancedDerivBot {
         }
     }
 
-    /**
-     * Send message to WebSocket with validation and queuing
-     * @param {Object} message - Message to send
-     */
     sendMessage(message) {
         if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
             this.log('Cannot send message: WebSocket not connected', 'error');
@@ -1369,9 +1160,6 @@ class AdvancedDerivBot {
         this.processQueue();
     }
 
-    /**
-     * Process queued messages with rate limiting
-     */
     processQueue() {
         if (this.tradeQueue.length === 0 || this.isProcessingQueue) return;
 
@@ -1391,10 +1179,6 @@ class AdvancedDerivBot {
         }, 100);
     }
 
-    /**
-     * Generate unique request ID as an integer
-     * @returns {number} Unique request ID
-     */
     generateReqId() {
         const reqId = this.requestIdCounter++;
         if (this.requestIdCounter > Number.MAX_SAFE_INTEGER) {
@@ -1403,19 +1187,11 @@ class AdvancedDerivBot {
         return reqId;
     }
 
-    /**
-     * Detect if a volatility spike is occurring
-     * @returns {boolean} Whether a volatility spike is detected
-     */
     detectVolatilitySpike() {
         const indicators = this.indicatorManager.getIndicators();
         return indicators.volatility > 3;
     }
 
-    /**
-     * Detect current market trend
-     * @returns {string} Market trend (uptrend, downtrend, sideways)
-     */
     detectMarketTrend() {
         const candles = this.candleManager.getCandles(this.config.symbol);
         if (candles.length < 20) return 'sideways';
@@ -1431,10 +1207,6 @@ class AdvancedDerivBot {
                recentAvg > olderAvg ? 'uptrend' : 'downtrend';
     }
 
-    /**
-     * Calculate optimal stake size using Kelly Criterion
-     * @returns {number} Optimal stake amount
-     */
     calculateOptimalStake() {
         const winRate = this.totalTrades > 0 ? this.wins / this.totalTrades : 0.5;
         const avgWin = this.wins > 0 ? this.totalPnL / this.wins : 0.85;
@@ -1444,11 +1216,6 @@ class AdvancedDerivBot {
         return parseFloat(Math.max(0.35, Math.min(this.balance * kellyFraction * 0.1, 10)).toFixed(1));
     }
 
-    /**
-     * Update strategy performance statistics
-     * @param {string} strategy - Strategy name
-     * @param {string} result - Trade result (win/loss)
-     */
     updateStrategyStats(strategy, result) {
         if (!this.strategyStats[strategy]) {
             this.strategyStats[strategy] = { wins: 0, losses: 0, recentTrades: [] };
@@ -1460,12 +1227,8 @@ class AdvancedDerivBot {
         }
     }
 
-    /**
-     * Select the best strategy based on historical performance
-     * @returns {string} Best strategy
-     */
     selectBestStrategy() {
-        const strategies = ['martingale', 'dalembert', 'trend-follow', 'mean-reversion', 'rsi-strategy', 'grid', 'arbitrage', 'ml-based', 'custom'];
+        const strategies = ['martingale', 'dalembert', 'trend-follow', 'mean-reversion', 'rsi-strategy', 'grid', 'ml-based', 'custom'];
         let bestStrategy = this.config.strategy;
         let bestScore = -Infinity;
 
@@ -1491,10 +1254,6 @@ class AdvancedDerivBot {
         return this.config.strategy;
     }
 
-    /**
-     * Check market conditions for news and volatility spikes
-     * @returns {boolean} Whether conditions are unfavorable
-     */
     checkMarketConditions() {
         const now = new Date();
         const hour = now.getUTCHours();
@@ -1526,48 +1285,11 @@ class AdvancedDerivBot {
         return false;
     }
 
-    /**
-     * Train ML model using data from Firebase
-     */
-    async trainMLModel() {
-        try {
-            const dataset = await loadDataset(`trades/${this.sessionId}`);
-            if (dataset.features.length < 50) {
-                this.log('Insufficient data for ML training', 'warning');
-                this.intelligenceLevel = 0;
-                return;
-            }
-
-            this.mlModel = await trainModel(dataset.features, dataset.labels);
-
-            // Update intelligence level
-            const backtestWinRate = this.wins / this.totalTrades * 100 || 0;
-            const liveWinRate = backtestWinRate; // For simplicity
-            this.intelligenceLevel = calculateIntelligenceLevel(
-                dataset.features.length,
-                this.mlConfidence,
-                backtestWinRate,
-                liveWinRate
-            );
-            this.log(`ML model trained. Intelligence level: ${this.intelligenceLevel}`, 'info');
-        } catch (error) {
-            this.log(`ML training error: ${error.message}`, 'error');
-            this.intelligenceLevel = 0;
-        }
-    }
-
-    /**
-     * Optimize strategy parameters periodically
-     */
     optimizeStrategy() {
         this.log('Running strategy optimization...', 'info');
-        this.trainMLModel();
     }
 }
 
-/**
- * Initialize bot and setup global event listeners
- */
 document.addEventListener('DOMContentLoaded', () => {
     try {
         window.derivBot = new AdvancedDerivBot();

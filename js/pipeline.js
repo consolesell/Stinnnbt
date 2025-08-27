@@ -1,26 +1,36 @@
-import fs from 'fs';
-import path from 'path';
-
 /**
- * Data Pipeline Manager - Handles local data storage and retrieval
+ * Data Pipeline Manager - Handles browser-based data storage and retrieval
  */
 class DataPipeline {
     constructor(dataFile = 'data.json') {
         this.dataFile = dataFile;
-        this.initializeDataFile();
+        this.initializeData();
     }
 
     /**
-     * Initialize data file if it doesn't exist
+     * Initialize data in localStorage if it doesn't exist
      */
-    initializeDataFile() {
-        if (!fs.existsSync(this.dataFile)) {
-            const initialData = {
+    async initializeData() {
+        let data = JSON.parse(localStorage.getItem('derivBotData') || '{}');
+        if (!data.ticks || !data.candles || !data.trades) {
+            data = {
                 ticks: [],
                 candles: [],
                 trades: []
             };
-            fs.writeFileSync(this.dataFile, JSON.stringify(initialData, null, 2));
+            localStorage.setItem('derivBotData', JSON.stringify(data));
+        }
+
+        // Optionally load initial data from data.json (if included in repo)
+        try {
+            const response = await fetch(this.dataFile);
+            if (response.ok) {
+                const initialData = await response.json();
+                data = { ...data, ...initialData };
+                localStorage.setItem('derivBotData', JSON.stringify(data));
+            }
+        } catch (error) {
+            console.warn('No initial data.json found or fetch failed:', error);
         }
     }
 
@@ -31,7 +41,7 @@ class DataPipeline {
      */
     saveData(type, entry) {
         try {
-            const data = JSON.parse(fs.readFileSync(this.dataFile, 'utf8'));
+            const data = JSON.parse(localStorage.getItem('derivBotData') || '{}');
             
             // Clean and validate entry
             const cleanEntry = this.cleanEntry(type, entry);
@@ -47,7 +57,7 @@ class DataPipeline {
                 data[type] = data[type].slice(-10000);
             }
             
-            fs.writeFileSync(this.dataFile, JSON.stringify(data, null, 2));
+            localStorage.setItem('derivBotData', JSON.stringify(data));
             return true;
         } catch (error) {
             console.error(`Error saving ${type} data:`, error);
@@ -63,7 +73,7 @@ class DataPipeline {
      */
     loadData(type, limit = null) {
         try {
-            const data = JSON.parse(fs.readFileSync(this.dataFile, 'utf8'));
+            const data = JSON.parse(localStorage.getItem('derivBotData') || '{}');
             const entries = data[type] || [];
             return limit ? entries.slice(-limit) : entries;
         } catch (error) {
@@ -159,7 +169,7 @@ class DataPipeline {
      */
     getDataStats() {
         try {
-            const data = JSON.parse(fs.readFileSync(this.dataFile, 'utf8'));
+            const data = JSON.parse(localStorage.getItem('derivBotData') || '{}');
             return {
                 ticks: data.ticks?.length || 0,
                 candles: data.candles?.length || 0,
@@ -178,9 +188,9 @@ class DataPipeline {
      */
     clearData(type) {
         try {
-            const data = JSON.parse(fs.readFileSync(this.dataFile, 'utf8'));
+            const data = JSON.parse(localStorage.getItem('derivBotData') || '{}');
             data[type] = [];
-            fs.writeFileSync(this.dataFile, JSON.stringify(data, null, 2));
+            localStorage.setItem('derivBotData', JSON.stringify(data));
             return true;
         } catch (error) {
             console.error(`Error clearing ${type} data:`, error);
@@ -221,3 +231,7 @@ export function clearData(type) {
 }
 
 export { DataPipeline };
+
+// Initialize data on load
+const pipeline = new DataPipeline();
+pipeline.initializeData();

@@ -1,165 +1,91 @@
 /**
- * MLManager - Manages machine learning model for trading predictions
- * @class
+ * ML - Machine learning-based trade predictions
  */
-import { loadData } from './pipeline.js';
 
-export class MLManager {
-    constructor() {
-        // Load persisted model state from localStorage
-        this.models = new Map(JSON.parse(localStorage.getItem('mlModels') || '[]'));
-        this.featureWeights = new Map(JSON.parse(localStorage.getItem('mlFeatureWeights') || '[]'));
-        this.performanceHistory = JSON.parse(localStorage.getItem('mlPerformanceHistory') || '[]');
-        this.minConfidenceThreshold = 0.7; // Minimum confidence for trade signals
-        console.log('MLManager initialized, loaded model state from storage');
+/**
+ * Predict trade based on indicators and market conditions
+ * @param {Object} indicators - Technical indicators from IndicatorManager
+ * @param {Object} marketConditions - Market conditions { trend, volatilitySpike, candlePattern, newsEvent }
+ * @returns {Object} Trade signal { shouldTrade, tradeType, confidence, reason, features }
+ */
+export function predictTrade(indicators, marketConditions) {
+  try {
+    if (!indicators || !marketConditions) {
+      window.derivBot?.log('[ML] Invalid input for prediction', 'error');
+      return { shouldTrade: false, tradeType: 'CALL', confidence: 0, reason: 'Invalid input', features: {} };
     }
 
-    /**
-     * Train the ML model using historical trade data
-     * @returns {Object} Training result
-     */
-    trainModel() {
-        try {
-            const trades = loadData('trades');
-            if (!trades || trades.length < 20) {
-                console.warn('Insufficient trade data for training');
-                return { error: 'Insufficient trade data', featureImportance: {} };
-            }
+    const { rsi, macd, volatility, adx } = indicators;
+    const { trend, volatilitySpike, candlePattern, newsEvent } = marketConditions;
 
-            // Initialize feature weights if empty
-            if (this.featureWeights.size === 0) {
-                this.featureWeights.set('rsi', 0.2);
-                this.featureWeights.set('macd', 0.2);
-                this.featureWeights.set('volatility', 0.15);
-                this.featureWeights.set('movingAverage', 0.15);
-                this.featureWeights.set('bollingerPosition', 0.1);
-                this.featureWeights.set('adx', 0.1);
-                this.featureWeights.set('sentiment', 0.05);
-                this.featureWeights.set('candlePattern', 0.05);
-            }
-
-            // Simple training: Update feature weights based on successful trades
-            const successfulTrades = trades.filter(trade => trade.result === 'win');
-            const featureImportance = {};
-            for (const feature of this.featureWeights.keys()) {
-                const avgValue = successfulTrades.reduce((sum, trade) => {
-                    if (feature === 'candlePattern') {
-                        return sum + (['BullishEngulfing', 'Hammer', 'MorningStar', 'BullishHarami'].includes(trade.marketConditions[feature]) ? 1 : 0);
-                    }
-                    return sum + (trade.indicators[feature] || 0);
-                }, 0) / (successfulTrades.length || 1);
-                featureImportance[feature] = this.featureWeights.get(feature) * avgValue;
-            }
-
-            // Normalize feature importance
-            const totalWeight = Object.values(featureImportance).reduce((sum, val) => sum + val, 0);
-            for (const feature in featureImportance) {
-                featureImportance[feature] = totalWeight ? featureImportance[feature] / totalWeight : 0;
-            }
-
-            // Update performance history
-            this.performanceHistory.push({
-                timestamp: new Date().toISOString(),
-                tradesProcessed: trades.length,
-                featureImportance
-            });
-            if (this.performanceHistory.length > 100) {
-                this.performanceHistory.shift();
-            }
-
-            // Save model state to localStorage
-            this.saveModelState();
-
-            console.log('ML model trained successfully');
-            return { featureImportance };
-        } catch (error) {
-            console.error(`Error training ML model: ${error.message}`);
-            return { error: `Training failed: ${error.message}`, featureImportance: {} };
-        }
+    if (newsEvent || volatilitySpike) {
+      return {
+        shouldTrade: false,
+        tradeType: 'CALL',
+        confidence: 0,
+        reason: `Avoid trading during ${newsEvent ? 'news event' : 'volatility spike'}`,
+        features: { rsi, macd: macd.histogram, volatility },
+      };
     }
 
-    /**
-     * Save model state to localStorage
-     */
-    saveModelState() {
-        try {
-            localStorage.setItem('mlModels', JSON.stringify([...this.models]));
-            localStorage.setItem('mlFeatureWeights', JSON.stringify([...this.featureWeights]));
-            localStorage.setItem('mlPerformanceHistory', JSON.stringify(this.performanceHistory));
-            console.log('ML model state saved to storage');
-        } catch (error) {
-            console.error(`Error saving ML model state: ${error.message}`);
-        }
+    let score = 0;
+    let reason = '';
+
+    // RSI-based signal
+    if (rsi > 70) {
+      score -= 0.3;
+      reason += 'Overbought RSI; ';
+    } else if (rsi < 30) {
+      score += 0.3;
+      reason += 'Oversold RSI; ';
     }
 
-    /**
-     * Predict trade based on indicators and market conditions
-     * @param {Object} indicators - Technical indicators
-     * @param {Object} marketConditions - Market conditions
-     * @returns {Object} Prediction result
-     */
-    predictTrade(indicators, marketConditions) {
-        try {
-            if (!indicators || !marketConditions) {
-                console.error('Invalid input for prediction:', { indicators, marketConditions });
-                return { shouldTrade: false, tradeType: null, confidence: 0, reason: 'Invalid input' };
-            }
-
-            // Calculate weighted score for trade decision
-            let score = 0;
-            score += (indicators.rsi > 70 ? -1 : indicators.rsi < 30 ? 1 : 0) * (this.featureWeights.get('rsi') || 0.2);
-            score += (indicators.macd > 0 ? 1 : -1) * (this.featureWeights.get('macd') || 0.2);
-            score += (indicators.volatility < 2 ? 0.5 : -0.5) * (this.featureWeights.get('volatility') || 0.15);
-            score += (indicators.movingAverage && this.candles?.slice(-1)[0]?.close > indicators.movingAverage ? 1 : -1) * (this.featureWeights.get('movingAverage') || 0.15);
-            score += (indicators.bollingerPosition === 'above' ? -1 : indicators.bollingerPosition === 'below' ? 1 : 0) * (this.featureWeights.get('bollingerPosition') || 0.1);
-            score += (indicators.adx > 25 ? 1 : 0) * (this.featureWeights.get('adx') || 0.1);
-            score += (indicators.sentiment > 0 ? 1 : -1) * (this.featureWeights.get('sentiment') || 0.05);
-
-            // Adjust score based on candle patterns
-            const bullishPatterns = ['BullishEngulfing', 'Hammer', 'MorningStar', 'BullishHarami'];
-            const bearishPatterns = ['BearishEngulfing', 'ShootingStar', 'EveningStar', 'BearishHarami'];
-            if (bullishPatterns.includes(marketConditions.candlePattern)) {
-                score += (this.featureWeights.get('candlePattern') || 0.05);
-            } else if (bearishPatterns.includes(marketConditions.candlePattern)) {
-                score -= (this.featureWeights.get('candlePattern') || 0.05);
-            }
-
-            // Adjust for market conditions
-            if (marketConditions.volatilitySpike || marketConditions.newsEvent) {
-                score *= 0.5; // Reduce confidence during high volatility or news
-            }
-
-            const confidence = Math.min(1, Math.max(0, Math.abs(score)));
-            const shouldTrade = confidence >= this.minConfidenceThreshold && !marketConditions.volatilitySpike && !marketConditions.newsEvent;
-
-            // Save performance history
-            this.performanceHistory.push({
-                timestamp: new Date().toISOString(),
-                indicators,
-                marketConditions,
-                score,
-                confidence,
-                shouldTrade,
-                tradeType: score > 0 ? 'CALL' : 'PUT'
-            });
-            if (this.performanceHistory.length > 100) {
-                this.performanceHistory.shift();
-            }
-
-            this.saveModelState();
-
-            const result = {
-                shouldTrade,
-                tradeType: score > 0 ? 'CALL' : 'PUT',
-                confidence,
-                reason: shouldTrade ? `High confidence score: ${confidence.toFixed(2)}` : `Low confidence: ${confidence.toFixed(2)}`,
-                featureImportance: Object.fromEntries(this.featureWeights)
-            };
-            console.log(`Trade prediction: ${JSON.stringify(result)}`);
-            return result;
-        } catch (error) {
-            console.error(`Error predicting trade: ${error.message}`);
-            return { shouldTrade: false, tradeType: null, confidence: 0, reason: `Prediction failed: ${error.message}` };
-        }
+    // MACD-based signal
+    if (macd.histogram > 0) {
+      score += 0.2;
+      reason += 'Bullish MACD; ';
+    } else if (macd.histogram < 0) {
+      score -= 0.2;
+      reason += 'Bearish MACD; ';
     }
+
+    // Trend-based signal
+    if (trend === 'uptrend') {
+      score += 0.2;
+      reason += 'Uptrend detected; ';
+    } else if (trend === 'downtrend') {
+      score -= 0.2;
+      reason += 'Downtrend detected; ';
+    }
+
+    // Candle pattern confirmation
+    if (candlePattern && ['BullishEngulfing', 'Hammer', 'MorningStar'].includes(candlePattern)) {
+      score += 0.15;
+      reason += `Bullish pattern: ${candlePattern}; `;
+    } else if (candlePattern && ['BearishEngulfing', 'ShootingStar'].includes(candlePattern)) {
+      score -= 0.15;
+      reason += `Bearish pattern: ${candlePattern}; `;
+    }
+
+    // Volatility and ADX filters
+    if (volatility > 2.5 || adx > 25) {
+      score *= 0.5;
+      reason += 'High volatility or strong trend; ';
+    }
+
+    const confidence = Math.min(Math.max(Math.abs(score), 0), 1);
+    const shouldTrade = confidence > 0.5;
+    const tradeType = score > 0 ? 'CALL' : 'PUT';
+
+    return {
+      shouldTrade,
+      tradeType,
+      confidence,
+      reason: reason || 'No strong signal',
+      features: { rsi, macd: macd.histogram, volatility },
+    };
+  } catch (error) {
+    window.derivBot?.log(`[ML] Prediction error: ${error.message}`, 'error');
+    return { shouldTrade: false, tradeType: 'CALL', confidence: 0, reason: 'Prediction error', features: {} };
+  }
 }

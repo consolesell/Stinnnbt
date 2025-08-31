@@ -3,566 +3,1016 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Advanced Deriv Bot</title>
+    <title>sbl STINGRAY V4 Advanced Deriv Trading Bot</title>
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom"></script>
     <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
-    <header>
-        <h1>Advanced Deriv Bot</h1>
-        <div class="connection-status">
-            <span id="connection-status">Disconnected</span>
-            <span id="status-indicator" class="status-indicator"></span>
-        </div>
-    </header>
-    <main>
-        <section class="control-panel">
-            <h2>Control Panel</h2>
-            <div class="form-group">
-                <label for="app-id">App ID:</label>
-                <input type="number" id="app-id" value="1089" aria-label="Deriv App ID">
+    <div class="container">
+        <header>
+            <h1><i class="fas fa-robot"></i> Advanced Deriv Trading Bot</h1>
+            <div class="header-controls">
+                <button id="theme-toggle" class="theme-toggle btn secondary" aria-label="Toggle light/dark mode"><i class="fas fa-moon"></i></button>
+                <button id="help-btn" class="btn secondary" aria-label="Show help"><i class="fas fa-question-circle"></i> Help</button>
             </div>
-            <div class="form-group">
-                <label for="api-token">API Token:</label>
-                <input type="text" id="api-token" aria-label="Deriv API Token">
-            </div>
-            <div class="form-group">
-                <button id="connect-btn" aria-label="Connect to Deriv API">Connect</button>
-                <button id="start-btn" aria-label="Start trading">Start Trading</button>
-                <button id="stop-btn" disabled aria-label="Stop trading">Stop Trading</button>
-                <button id="reset-btn" aria-label="Reset statistics">Reset Stats</button>
-                <button id="backtest-btn" aria-label="Run backtest">Run Backtest</button>
-            </div>
-        </section>
+        </header>
 
-        <section class="config-panel">
-            <h2>Configuration</h2>
-            <div class="form-group">
-                <label for="strategy-select">Strategy:</label>
-                <select id="strategy-select" aria-label="Trading strategy">
-                    <option value="martingale">Martingale</option>
-                    <option value="dalembert">D'Alembert</option>
-                    <option value="trend-follow">Trend Following</option>
-                    <option value="mean-reversion">Mean Reversion</option>
-                    <option value="rsi-strategy">RSI Strategy</option>
-                    <option value="grid">Grid</option>
-                    <option value="arbitrage">Arbitrage</option>
-                    <option value="ml-based">ML-Based</option>
-                    <option value="custom">Custom</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="symbols">Symbols:</label>
-                <select id="symbols" multiple aria-label="Market symbols">
-                    <option value="R_10">R_10</option>
-                    <option value="R_25">R_25</option>
-                    <option value="R_50">R_50</option>
-                    <option value="R_100">R_100</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="trade-type">Trade Type:</label>
-                <select id="trade-type" aria-label="Trade type">
-                    <option value="CALL">CALL</option>
-                    <option value="PUT">PUT</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="duration">Duration (s):</label>
-                <input type="number" id="duration" value="60" aria-label="Trade duration in seconds">
-            </div>
-            <div class="form-group">
-                <label for="stake">Stake ($):</label>
-                <input type="number" id="stake" value="1" step="0.1" aria-label="Trade stake">
-            </div>
-            <div class="form-group">
-                <label for="max-loss">Max Loss ($):</label>
-                <input type="number" id="max-loss" value="50" aria-label="Maximum loss">
-            </div>
-            <div class="form-group">
-                <label for="max-profit">Max Profit ($):</label>
-                <input type="number" id="max-profit" value="100" aria-label="Maximum profit">
-            </div>
-            <div class="form-group">
-                <label for="max-trades">Max Trades:</label>
-                <input type="number" id="max-trades" value="50" aria-label="Maximum number of trades">
-            </div>
-            <div class="form-group">
-                <label for="multiplier">Martingale Multiplier:</label>
-                <input type="number" id="multiplier" value="2.1" step="0.1" aria-label="Martingale multiplier">
-            </div>
-            <div class="form-group">
-                <label for="max-drawdown">Max Drawdown (%):</label>
-                <input type="number" id="max-drawdown" value="20" aria-label="Maximum drawdown percentage">
-            </div>
-            <div class="form-group">
-                <label for="max-consecutive-losses">Max Consecutive Losses:</label>
-                <input type="number" id="max-consecutive-losses" value="5" aria-label="Maximum consecutive losses">
-            </div>
-            <div class="form-group">
-                <label for="cooldown-period">Cooldown Period (ms):</label>
-                <input type="number" id="cooldown-period" value="300000" aria-label="Cooldown period in milliseconds">
-            </div>
-            <div class="form-group">
-                <label for="position-sizing">Position Sizing:</label>
-                <select id="position-sizing" aria-label="Position sizing strategy">
-                    <option value="kelly">Kelly Criterion</option>
-                    <option value="fixed">Fixed Fraction</option>
-                    <option value="volatility">Volatility Adjusted</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="fixed-fraction">Fixed Fraction:</label>
-                <input type="number" id="fixed-fraction" value="0.02" step="0.01" aria-label="Fixed fraction for position sizing">
-            </div>
-            <div class="form-group">
-                <label for="custom-strategy-rules">Custom Rules (JSON):</label>
-                <textarea id="custom-strategy-rules" aria-label="Custom strategy rules in JSON">[]</textarea>
-            </div>
-            <div class="form-group">
-                <label><input type="checkbox" id="multi-timeframe" checked aria-label="Use multi-timeframe analysis"> Multi-Timeframe</label>
-                <label><input type="checkbox" id="dynamic-switching" checked aria-label="Use dynamic strategy switching"> Dynamic Switching</label>
-                <label><input type="checkbox" id="stop-loss-enabled" checked aria-label="Enable stop loss"> Stop Loss</label>
-                <label><input type="checkbox" id="take-profit-enabled" checked aria-label="Enable take profit"> Take Profit</label>
-                <label><input type="checkbox" id="use-candle-patterns" checked aria-label="Use candle patterns"> Candle Patterns</label>
-            </div>
-            <div class="form-group">
-                <label for="candle-timeframe">Candle Timeframe (s):</label>
-                <input type="number" id="candle-timeframe" value="60" aria-label="Candle timeframe in seconds">
-            </div>
-            <div class="form-group">
-                <label for="chart-type">Chart Type:</label>
-                <select id="chart-type" aria-label="Chart type">
-                    <option value="line">Line</option>
-                    <option value="candlestick">Candlestick</option>
-                </select>
-            </div>
-        </section>
+        <main>
+            <!-- Quick Stats Dashboard -->
+            <details open class="quick-stats-details">
+                <summary><i class="fas fa-tachometer-alt"></i> Quick Stats</summary>
+                <section class="card quick-stats">
+                    <div class="stats-grid">
+                        <div class="stat" title="Total profit and loss" role="status">
+                            <span class="stat-label"><i class="fas fa-dollar-sign"></i> P&L:</span>
+                            <span id="total-pnl" class="stat-value">$0.00</span>
+                        </div>
+                        <div class="stat" title="Current account balance" role="status">
+                            <span class="stat-label"><i class="fas fa-wallet"></i> Balance:</span>
+                            <span id="balance" class="stat-value">$0.00</span>
+                        </div>
+                        <div class="stat" title="Percentage of winning trades" role="status">
+                            <span class="stat-label"><i class="fas fa-chart-line"></i> Win Rate:</span>
+                            <span id="win-rate" class="stat-value">0%</span>
+                        </div>
+                        <div class="stat" title="Current market price" role="status">
+                            <span class="stat-label"><i class="fas fa-tag"></i> Price:</span>
+                            <span id="current-price" class="stat-value">0.00000</span>
+                        </div>
+                    </div>
+                </section>
+            </details>
 
-        <section class="data-management">
-            <h2>Data Management</h2>
-            <div class="form-group">
-                <label for="data-type">Data Type:</label>
-                <select id="data-type" aria-label="Data type to view">
-                    <option value="ticks">Ticks</option>
-                    <option value="candles">Candles</option>
-                    <option value="trades">Trades</option>
-                </select>
-                <button id="view-data" aria-label="View selected data">View Data</button>
-            </div>
-            <div class="form-group">
-                <label for="import-data">Import Data:</label>
-                <input type="file" id="import-data" accept=".json" aria-label="Import data file">
-            </div>
-            <table id="data-table">
-                <thead id="data-table-header"></thead>
-                <tbody id="data-table-body"></tbody>
-            </table>
-            <div class="pagination" id="pagination"></div>
-        </section>
+            <!-- Connection Section -->
+            <details open>
+                <summary><i class="fas fa-plug"></i> Connection Settings</summary>
+                <section class="card">
+                    <div class="form-group">
+                        <label for="app-id">App ID:</label>
+                        <input type="number" id="app-id" value="1089" min="1" aria-describedby="app-id-help" data-tooltip="Your unique Deriv App ID">
+                        <small id="app-id-help">Enter your Deriv App ID</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="api-token">API Token:</label>
+                        <input type="password" id="api-token" placeholder="Enter your API token" aria-describedby="api-token-help" data-tooltip="Obtain from Deriv API settings">
+                        <small id="api-token-help">Obtain from Deriv API settings</small>
+                    </div>
+                    <div class="status">
+                        <span id="status-indicator" class="status-indicator"></span>
+                        <span id="connection-status" role="status">Disconnected</span>
+                    </div>
+                    <button id="connect-btn" class="btn primary"><i class="fas fa-link"></i> Connect</button>
+                </section>
+            </details>
 
-        <section class="trading-stats">
-            <h2>Trading Statistics</h2>
-            <div class="stats-grid">
-                <div class="stat">
-                    <span class="stat-label">Total Trades:</span>
-                    <span class="stat-value" id="total-trades">0</span>
-                </div>
-                <div class="stat">
-                    <span class="stat-label">Wins:</span>
-                    <span class="stat-value" id="wins">0</span>
-                </div>
-                <div class="stat">
-                    <span class="stat-label">Losses:</span>
-                    <span class="stat-value" id="losses">0</span>
-                </div>
-                <div class="stat">
-                    <span class="stat-label">Win Rate:</span>
-                    <span class="stat-value" id="win-rate">0%</span>
-                </div>
-                <div class="stat">
-                    <span class="stat-label">Current Streak:</span>
-                    <span class="stat-value" id="current-streak">0</span>
-                </div>
-                <div class="stat">
-                    <span class="stat-label">Total P&L:</span>
-                    <span class="stat-value" id="total-pnl">$0.00</span>
-                </div>
-                <div class="stat">
-                    <span class="stat-label">Balance:</span>
-                    <span class="stat-value" id="balance">$0.00</span>
-                </div>
-                <div class="stat">
-                    <span class="stat-label">Last Trade:</span>
-                    <span class="stat-value" id="last-trade">-</span>
-                </div>
-            </div>
-            <table class="strategy-table">
-                <thead>
-                    <tr>
-                        <th>Strategy</th>
-                        <th>Wins</th>
-                        <th>Losses</th>
-                        <th>Win Rate</th>
-                    </tr>
-                </thead>
-                <tbody id="strategy-stats-body"></tbody>
-            </table>
-        </section>
+            <!-- Trading Controls -->
+            <details>
+                <summary><i class="fas fa-cog"></i> Trading Controls</summary>
+                <section class="card">
+                    <div class="form-group">
+                        <label for="strategy-select">Strategy:</label>
+                        <select id="strategy-select" data-tooltip="Select trading strategy">
+                            <option value="martingale">Martingale</option>
+                            <option value="dalembert">D'Alembert</option>
+                            <option value="trend-follow">Trend Following</option>
+                            <option value="mean-reversion">Mean Reversion</option>
+                            <option value="rsi-strategy">RSI Strategy</option>
+                            <option value="grid">Grid Trading</option>
+                            <option value="arbitrage">Arbitrage</option>
+                            <option value="ml-based">ML-Based</option>
+                            <option value="custom">Custom</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="symbols">Symbols:</label>
+                        <select id="symbols" multiple data-tooltip="Select one or more trading symbols">
+                            <option value="R_10" selected>Volatility 10</option>
+                            <option value="R_25">Volatility 25</option>
+                            <option value="R_50">Volatility 50</option>
+                            <option value="R_75">Volatility 75</option>
+                            <option value="R_100">Volatility 100</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="trade-type">Trade Type:</label>
+                        <select id="trade-type" data-tooltip="Select CALL or PUT">
+                            <option value="CALL">Call</option>
+                            <option value="PUT">Put</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="duration">Duration (seconds):</label>
+                        <input type="number" id="duration" value="60" min="1" step="1" data-tooltip="Trade duration in seconds">
+                    </div>
+                    <div class="form-group">
+                        <label for="stake">Stake (USD):</label>
+                        <input type="number" id="stake" value="1" min="0.35" step="0.1" data-tooltip="Amount to risk per trade">
+                    </div>
+                    <div class="form-group">
+                        <label for="max-loss">Max Loss (USD):</label>
+                        <input type="number" id="max-loss" value="50" min="0" data-tooltip="Maximum loss before stopping">
+                    </div>
+                    <div class="form-group">
+                        <label for="max-profit">Max Profit (USD):</label>
+                        <input type="number" id="max-profit" value="100" min="0" data-tooltip="Target profit to stop trading">
+                    </div>
+                    <div class="form-group">
+                        <label for="max-trades">Max Trades:</label>
+                        <input type="number" id="max-trades" value="50" min="1" step="1" data-tooltip="Maximum number of trades per session">
+                    </div>
+                    <div class="form-group">
+                        <label for="multiplier">Martingale Multiplier:</label>
+                        <input type="number" id="multiplier" value="2.1" min="1" step="0.1" data-tooltip="Stake multiplier for Martingale strategy">
+                    </div>
+                    <div class="form-group">
+                        <label for="max-drawdown">Max Drawdown (%):</label>
+                        <input type="number" id="max-drawdown" value="20" min="0" step="1" data-tooltip="Maximum percentage loss of balance">
+                    </div>
+                    <div class="form-group">
+                        <label for="max-consecutive-losses">Max Consecutive Losses:</label>
+                        <input type="number" id="max-consecutive-losses" value="5" min="1" step="1" data-tooltip="Maximum consecutive losing trades">
+                    </div>
+                    <div class="form-group">
+                        <label for="cooldown-period">Cooldown Period (ms):</label>
+                        <input type="number" id="cooldown-period" value="300000" min="1000" step="1000" data-tooltip="Pause duration after loss limit">
+                    </div>
+                    <div class="form-group">
+                        <label for="position-sizing">Position Sizing:</label>
+                        <select id="position-sizing" data-tooltip="Method for determining trade size">
+                            <option value="kelly">Kelly Criterion</option>
+                            <option value="fixed">Fixed Fraction</option>
+                            <option value="volatility">Volatility Adjusted</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="fixed-fraction">Fixed Fraction (%):</label>
+                        <input type="number" id="fixed-fraction" value="0.02" min="0" step="0.01" data-tooltip="Percentage of balance for fixed sizing">
+                    </div>
+                    <div class="form-group">
+                        <label for="custom-strategy-rules">Custom Strategy Rules (JSON):</label>
+                        <textarea id="custom-strategy-rules" rows="4" data-tooltip="Define custom trading rules in JSON format">[]</textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="candle-timeframe">Candle Timeframe (seconds):</label>
+                        <input type="number" id="candle-timeframe" value="60" min="1" step="1" data-tooltip="Timeframe for candlestick chart">
+                    </div>
+                    <div class="form-group">
+                        <label for="chart-type">Chart Type:</label>
+                        <select id="chart-type" data-tooltip="Select chart display type">
+                            <option value="line">Line</option>
+                            <option value="candlestick">Candlestick</option>
+                        </select>
+                    </div>
+                    <div class="form-group checkbox-group">
+                        <label><input type="checkbox" id="stop-loss-enabled" checked> Enable Stop Loss</label>
+                        <label><input type="checkbox" id="take-profit-enabled" checked> Enable Take Profit</label>
+                        <label><input type="checkbox" id="multi-timeframe" checked> Use Multi-Timeframe</label>
+                        <label><input type="checkbox" id="dynamic-switching" checked> Dynamic Strategy Switching</label>
+                        <label><input type="checkbox" id="use-candle-patterns" checked> Use Candle Patterns</label>
+                    </div>
+                    <div class="button-group">
+                        <button id="start-btn" class="btn primary"><i class="fas fa-play"></i> Start Trading</button>
+                        <button id="stop-btn" class="btn secondary" disabled><i class="fas fa-stop"></i> Stop Trading</button>
+                        <button id="reset-btn" class="btn secondary"><i class="fas fa-undo"></i> Reset Stats</button>
+                        <button id="backtest-btn" class="btn secondary"><i class="fas fa-history"></i> Run Backtest</button>
+                        <button id="reset-config-btn" class="btn secondary"><i class="fas fa-cogs"></i> Reset Config</button>
+                        <button id="reset-chart-btn" class="btn secondary"><i class="fas fa-chart-area"></i> Reset Chart</button>
+                    </div>
+                </section>
+            </details>
 
-        <section class="market-data">
-            <h2>Market Data</h2>
-            <div class="stats-grid">
-                <div class="stat">
-                    <span class="stat-label">Current Price:</span>
-                    <span class="stat-value" id="current-price">0</span>
-                </div>
-                <div class="stat">
-                    <span class="stat-label">RSI:</span>
-                    <span class="stat-value" id="rsi-value">0</span>
-                </div>
-                <div class="stat">
-                    <span class="stat-label">Moving Average:</span>
-                    <span class="stat-value" id="ma-value">0</span>
-                </div>
-                <div class="stat">
-                    <span class="stat-label">Volatility:</span>
-                    <span class="stat-value" id="volatility-value">0%</span>
-                </div>
-                <div class="stat">
-                    <span class="stat-label">Bollinger Upper:</span>
-                    <span class="stat-value" id="bollinger-upper">0</span>
-                </div>
-                <div class="stat">
-                    <span class="stat-label">Bollinger Middle:</span>
-                    <span class="stat-value" id="bollinger-middle">0</span>
-                </div>
-                <div class="stat">
-                    <span class="stat-label">Bollinger Lower:</span>
-                    <span class="stat-value" id="bollinger-lower">0</span>
-                </div>
-                <div class="stat">
-                    <span class="stat-label">MACD Line:</span>
-                    <span class="stat-value" id="macd-line">0</span>
-                </div>
-                <div class="stat">
-                    <span class="stat-label">MACD Signal:</span>
-                    <span class="stat-value" id="macd-signal">0</span>
-                </div>
-                <div class="stat">
-                    <span class="stat-label">MACD Histogram:</span>
-                    <span class="stat-value" id="macd-histogram">0</span>
-                </div>
-                <div class="stat">
-                    <span class="stat-label">Stochastic %K:</span>
-                    <span class="stat-value" id="stochastic-k">0</span>
-                </div>
-                <div class="stat">
-                    <span class="stat-label">Stochastic %D:</span>
-                    <span class="stat-value" id="stochastic-d">0</span>
-                </div>
-                <div class="stat">
-                    <span class="stat-label">ADX:</span>
-                    <span class="stat-value" id="adx-value">0</span>
-                </div>
-                <div class="stat">
-                    <span class="stat-label">OBV:</span>
-                    <span class="stat-value" id="obv-value">0</span>
-                </div>
-                <div class="stat">
-                    <span class="stat-label">Sentiment:</span>
-                    <span class="stat-value" id="sentiment-value">0</span>
-                </div>
-                <div class="stat">
-                    <span class="stat-label">Candle Pattern:</span>
-                    <span class="stat-value" id="candle-pattern">None</span>
-                </div>
-                <div class="stat">
-                    <span class="stat-label">Candle Open:</span>
-                    <span class="stat-value" id="candle-open">-</span>
-                </div>
-                <div class="stat">
-                    <span class="stat-label">Candle High:</span>
-                    <span class="stat-value" id="candle-high">-</span>
-                </div>
-                <div class="stat">
-                    <span class="stat-label">Candle Low:</span>
-                    <span class="stat-value" id="candle-low">-</span>
-                </div>
-                <div class="stat">
-                    <span class="stat-label">Candle Close:</span>
-                    <span class="stat-value" id="candle-close">-</span>
-                </div>
-                <div class="stat">
-                    <span class="stat-label">News Event:</span>
-                    <span class="stat-value" id="news-event">None</span>
-                </div>
-                <div class="stat">
-                    <span class="stat-label">Volatility Spike:</span>
-                    <span class="stat-value" id="volatility-spike">No</span>
-                </div>
-                <div class="stat">
-                    <span class="stat-label">Volatility Trend:</span>
-                    <span class="stat-value" id="volatility-trend">Stable</span>
-                </div>
-                <div class="stat">
-                    <span class="stat-label">Market Trend:</span>
-                    <span class="stat-value" id="market-trend">Sideways</span>
-                </div>
-            </div>
-            <div class="chart-container">
-                <canvas id="price-chart" aria-label="Price chart"></canvas>
-            </div>
-            <table class="correlation-table">
-                <thead>
-                    <tr>
-                        <th>Symbol Pair</th>
-                        <th>Correlation</th>
-                    </tr>
-                </thead>
-                <tbody id="correlation-body"></tbody>
-            </table>
-        </section>
+            <!-- Data Management -->
+            <details>
+                <summary><i class="fas fa-database"></i> Data Management</summary>
+                <section class="card">
+                    <div class="form-group">
+                        <label for="data-type">Data Type:</label>
+                        <select id="data-type" data-tooltip="Select data type to view or manage">
+                            <option value="ticks">Ticks</option>
+                            <option value="candles">Candles</option>
+                            <option value="trades">Trades</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <button id="view-data-btn" class="btn secondary"><i class="fas fa-eye"></i> View Data</button>
+                        <button id="clear-data-btn" class="btn secondary"><i class="fas fa-trash"></i> Clear Data</button>
+                        <button id="export-data-btn" class="btn secondary"><i class="fas fa-download"></i> Export Data</button>
+                    </div>
+                    <div id="data-progress" class="progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                        <div id="data-progress-bar" class="progress-bar-fill"></div>
+                    </div>
+                    <div id="data-content" class="data-content">
+                        <table id="data-table">
+                            <thead id="data-table-head"></thead>
+                            <tbody id="data-table-body"></tbody>
+                        </table>
+                        <div class="pagination">
+                            <button id="data-prev-page" class="btn secondary" disabled><i class="fas fa-chevron-left"></i></button>
+                            <span id="data-page-info">Page 1 of 1</span>
+                            <button id="data-next-page" class="btn secondary" disabled><i class="fas fa-chevron-right"></i></button>
+                        </div>
+                    </div>
+                    <div id="loading-spinner" class="spinner" role="status" aria-hidden="true"></div>
+                </section>
+            </details>
 
-        <section class="ml-insights">
-            <h2>ML Insights</h2>
-            <div class="stats-grid">
-                <div class="stat">
-                    <span class="stat-label">Prediction Confidence:</span>
-                    <span class="stat-value" id="ml-confidence">0%</span>
-                </div>
-                <div class="stat">
-                    <span class="stat-label">Top Feature:</span>
-                    <span class="stat-value" id="ml-top-feature">None</span>
-                </div>
-            </div>
-            <div class="chart-container">
-                <canvas id="ml-feature-chart" aria-label="ML feature importance chart"></canvas>
-            </div>
-        </section>
+            <!-- Market Data -->
+            <details>
+                <summary><i class="fas fa-chart-bar"></i> Market Data</summary>
+                <section class="card">
+                    <div class="form-group checkbox-group">
+                        <label><input type="checkbox" id="show-rsi" checked> RSI</label>
+                        <label><input type="checkbox" id="show-bollinger" checked> Bollinger Bands</label>
+                        <label><input type="checkbox" id="show-ma" checked> Moving Average</label>
+                    </div>
+                    <canvas id="price-chart" height="200"></canvas>
+                    <div class="stats-grid">
+                        <div class="stat" title="Latest tick price" role="status">
+                            <span class="stat-label">Current Price:</span>
+                            <span id="current-price" class="stat-value">0.00000</span>
+                        </div>
+                        <div class="stat" title="Current market volatility" role="status">
+                            <span class="stat-label">Volatility:</span>
+                            <span id="volatility-value" class="stat-value">0.00%</span>
+                        </div>
+                        <div class="stat" title="Detected market trend" role="status">
+                            <span class="stat-label">Market Trend:</span>
+                            <span id="market-trend" class="stat-value">Sideways</span>
+                        </div>
+                        <div class="stat" title="Detected candlestick pattern" role="status">
+                            <span class="stat-label">Candle Pattern:</span>
+                            <span id="candle-pattern" class="stat-value">None</span>
+                        </div>
+                        <div class="stat" title="Candle open price" role="status">
+                            <span class="stat-label">Candle Open:</span>
+                            <span id="candle-open" class="stat-value">-</span>
+                        </div>
+                        <div class="stat" title="Candle high price" role="status">
+                            <span class="stat-label">Candle High:</span>
+                            <span id="candle-high" class="stat-value">-</span>
+                        </div>
+                        <div class="stat" title="Candle low price" role="status">
+                            <span class="stat-label">Candle Low:</span>
+                            <span id="candle-low" class="stat-value">-</span>
+                        </div>
+                        <div class="stat" title="Candle close price" role="status">
+                            <span class="stat-label">Candle Close:</span>
+                            <span id="candle-close" class="stat-value">-</span>
+                        </div>
+                    </div>
+                </section>
+            </details>
 
-        <section class="log-section">
-            <h2>Logs</h2>
-            <button id="clear-log" aria-label="Clear logs">Clear Log</button>
-            <div id="log-content" class="log-content" role="log" aria-live="polite"></div>
-        </section>
-    </main>
+            <!-- Technical Indicators -->
+            <details>
+                <summary><i class="fas fa-tachometer-alt"></i> Technical Indicators</summary>
+                <section class="card">
+                    <div class="stats-grid">
+                        <div class="stat" title="Relative Strength Index" role="status">
+                            <span class="stat-label">RSI:</span>
+                            <span id="rsi-value" class="stat-value">0.00</span>
+                        </div>
+                        <div class="stat" title="Moving Average (20-period)" role="status">
+                            <span class="stat-label">Moving Average:</span>
+                            <span id="ma-value" class="stat-value">0.00000</span>
+                        </div>
+                        <div class="stat" title="Bollinger Bands Upper" role="status">
+                            <span class="stat-label">Bollinger Upper:</span>
+                            <span id="bollinger-upper" class="stat-value">0.00000</span>
+                        </div>
+                        <div class="stat" title="Bollinger Bands Middle" role="status">
+                            <span class="stat-label">Bollinger Middle:</span>
+                            <span id="bollinger-middle" class="stat-value">0.00000</span>
+                        </div>
+                        <div class="stat" title="Bollinger Bands Lower" role="status">
+                            <span class="stat-label">Bollinger Lower:</span>
+                            <span id="bollinger-lower" class="stat-value">0.00000</span>
+                        </div>
+                        <div class="stat" title="MACD Line" role="status">
+                            <span class="stat-label">MACD Line:</span>
+                            <span id="macd-line" class="stat-value">0.00000</span>
+                        </div>
+                        <div class="stat" title="MACD Signal Line" role="status">
+                            <span class="stat-label">MACD Signal:</span>
+                            <span id="macd-signal" class="stat-value">0.00000</span>
+                        </div>
+                        <div class="stat" title="MACD Histogram" role="status">
+                            <span class="stat-label">MACD Histogram:</span>
+                            <span id="macd-histogram" class="stat-value">0.00000</span>
+                        </div>
+                        <div class="stat" title="Stochastic %K" role="status">
+                            <span class="stat-label">Stochastic %K:</span>
+                            <span id="stochastic-k" class="stat-value">0.00</span>
+                        </div>
+                        <div class="stat" title="Stochastic %D" role="status">
+                            <span class="stat-label">Stochastic %D:</span>
+                            <span id="stochastic-d" class="stat-value">0.00</span>
+                        </div>
+                        <div class="stat" title="Average Directional Index" role="status">
+                            <span class="stat-label">ADX:</span>
+                            <span id="adx-value" class="stat-value">0.00</span>
+                        </div>
+                        <div class="stat" title="On-Balance Volume" role="status">
+                            <span class="stat-label">OBV:</span>
+                            <span id="obv-value" class="stat-value">0.00</span>
+                        </div>
+                        <div class="stat" title="Market Sentiment" role="status">
+                            <span class="stat-label">Sentiment:</span>
+                            <span id="sentiment-value" class="stat-value">0.00</span>
+                        </div>
+                    </div>
+                </section>
+            </details>
+
+            <!-- ML Insights -->
+            <details>
+                <summary><i class="fas fa-brain"></i> ML Insights</summary>
+                <section class="card">
+                    <div class="stats-grid">
+                        <div class="stat" title="ML prediction confidence" role="status">
+                            <span class="stat-label">Prediction Confidence:</span>
+                            <span id="ml-confidence" class="stat-value">0%</span>
+                        </div>
+                        <div class="stat" title="Most influential feature" role="status">
+                            <span class="stat-label">Top Feature:</span>
+                            <span id="ml-top-feature" class="stat-value">-</span>
+                        </div>
+                    </div>
+                    <canvas id="ml-feature-chart" height="100"></canvas>
+                </section>
+            </details>
+
+            <!-- Trading Stats -->
+            <details>
+                <summary><i class="fas fa-chart-pie"></i> Trading Statistics</summary>
+                <section class="card">
+                    <div class="stats-grid">
+                        <div class="stat" role="status">
+                            <span class="stat-label">Total Trades:</span>
+                            <span id="total-trades" class="stat-value">0</span>
+                        </div>
+                        <div class="stat" role="status">
+                            <span class="stat-label">Wins:</span>
+                            <span id="wins" class="stat-value">0</span>
+                        </div>
+                        <div class="stat" role="status">
+                            <span class="stat-label">Losses:</span>
+                            <span id="losses" class="stat-value">0</span>
+                        </div>
+                        <div class="stat" role="status">
+                            <span class="stat-label">Win Rate:</span>
+                            <span id="win-rate" class="stat-value">0%</span>
+                        </div>
+                        <div class="stat" role="status">
+                            <span class="stat-label">Current Streak:</span>
+                            <span id="current-streak" class="stat-value">0</span>
+                        </div>
+                        <div class="stat" role="status">
+                            <span class="stat-label">Total P&L:</span>
+                            <span id="total-pnl" class="stat-value">$0.00</span>
+                        </div>
+                        <div class="stat" role="status">
+                            <span class="stat-label">Balance:</span>
+                            <span id="balance" class="stat-value">$0.00</span>
+                        </div>
+                        <div class="stat" role="status">
+                            <span class="stat-label">Last Trade:</span>
+                            <span id="last-trade" class="stat-value">-</span>
+                        </div>
+                    </div>
+                </section>
+            </details>
+
+            <!-- Strategy Performance -->
+            <details>
+                <summary><i class="fas fa-trophy"></i> Strategy Performance</summary>
+                <section class="card">
+                    <table id="strategy-stats-table">
+                        <thead>
+                            <tr>
+                                <th>Strategy</th>
+                                <th>Wins</th>
+                                <th>Losses</th>
+                                <th>Win Rate</th>
+                            </tr>
+                        </thead>
+                        <tbody id="strategy-stats-body"></tbody>
+                    </table>
+                </section>
+            </details>
+
+            <!-- Market Conditions -->
+            <details>
+                <summary><i class="fas fa-globe"></i> Market Conditions</summary>
+                <section class="card">
+                    <div class="stats-grid">
+                        <div class="stat" title="Current economic news event" role="status">
+                            <span class="stat-label">News Event:</span>
+                            <span id="news-event" class="stat-value">None</span>
+                        </div>
+                        <div class="stat" title="Volatility spike detection" role="status">
+                            <span class="stat-label">Volatility Spike:</span>
+                            <span id="volatility-spike" class="stat-value">No</span>
+                        </div>
+                        <div class="stat" title="Volatility trend direction" role="status">
+                            <span class="stat-label">Volatility Trend:</span>
+                            <span id="volatility-trend" class="stat-value">Stable</span>
+                        </div>
+                    </div>
+                    <table id="correlation-table">
+                        <thead>
+                            <tr>
+                                <th>Symbol Pair</th>
+                                <th>Correlation</th>
+                            </tr>
+                        </thead>
+                        <tbody id="correlation-body"></tbody>
+                    </table>
+                </section>
+            </details>
+
+            <!-- Log -->
+            <details open>
+                <summary><i class="fas fa-file-alt"></i> Trading Log</summary>
+                <section class="card log-section">
+                    <div class="log-controls">
+                        <input type="text" id="log-search" placeholder="Search logs..." aria-label="Search logs" data-tooltip="Search through log entries">
+                        <select id="log-filter" data-tooltip="Filter logs by type">
+                            <option value="all">All</option>
+                            <option value="info">Info</option>
+                            <option value="success">Success</option>
+                            <option value="warning">Warning</option>
+                            <option value="error">Error</option>
+                            <option value="debug">Debug</option>
+                        </select>
+                        <button id="clear-log" class="btn secondary"><i class="fas fa-trash"></i> Clear Log</button>
+                        <button id="export-log" class="btn secondary"><i class="fas fa-download"></i> Export Log</button>
+                    </div>
+                    <div id="log-content" class="log-content"></div>
+                </section>
+            </details>
+
+            <!-- Help Modal -->
+            <div id="help-modal" class="modal" role="dialog" aria-labelledby="help-modal-title" aria-hidden="true">
+                <div class="modal-content">
+                    <h2 id="help-modal-title">Help & Support</h2>
+                    <p>Visit the following resources for assistance:</p>
+                    <ul>
+                        <li><a href="https://x.ai/api" target="_blank">xAI API Documentation</a></li>
+                        <li><a href="https://help.x.com" target="_blank">X Support</a></li>
+                        <li><a href="https://deriv.com" target="_blank">Deriv API Setup</a></li>
+                    </ul>
+                    <button id="close-help-modal" class="btn secondary"><i class="fas fa-times"></i> Close</button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script type="module" src="js/candles.js"></script>
+    <script type="module" src="js/indicators.js"></script>
+    <script type="module" src="js/pipeline.js"></script>
+    <script type="module" src="js/ml.js"></script>
+    <script type="module" src="js/script.js"></script>
     <script>
-        /**
-         * Update price chart using Chart.js
-         */
-        let priceChart = null;
+        // Initialize Chart.js for price chart
+        let chartType = document.getElementById('chart-type')?.value || 'line';
+        const priceCtx = document.getElementById('price-chart').getContext('2d');
+        const priceChart = new Chart(priceCtx, {
+            type: chartType,
+            data: {
+                labels: [],
+                datasets: [
+                    {
+                        label: 'Price',
+                        data: [],
+                        borderColor: 'var(--chart-color)',
+                        backgroundColor: (ctx) => ctx.raw && ctx.raw.y && ctx.raw.y[3] >= ctx.raw.y[0] ? 'rgba(40, 167, 69, 0.5)' : 'rgba(220, 53, 69, 0.5)',
+                        tension: chartType === 'line' ? 0.1 : 0
+                    },
+                    {
+                        label: 'RSI',
+                        data: [],
+                        borderColor: '#ff9800',
+                        yAxisID: 'rsi',
+                        hidden: !document.getElementById('show-rsi').checked
+                    },
+                    {
+                        label: 'Bollinger Upper',
+                        data: [],
+                        borderColor: '#2196f3',
+                        yAxisID: 'price',
+                        hidden: !document.getElementById('show-bollinger').checked
+                    },
+                    {
+                        label: 'Bollinger Middle',
+                        data: [],
+                        borderColor: '#2196f3',
+                        borderDash: [5, 5],
+                        yAxisID: 'price',
+                        hidden: !document.getElementById('show-bollinger').checked
+                    },
+                    {
+                        label: 'Bollinger Lower',
+                        data: [],
+                        borderColor: '#2196f3',
+                        yAxisID: 'price',
+                        hidden: !document.getElementById('show-bollinger').checked
+                    },
+                    {
+                        label: 'Moving Average',
+                        data: [],
+                        borderColor: '#4caf50',
+                        yAxisID: 'price',
+                        hidden: !document.getElementById('show-ma').checked
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    zoom: {
+                        zoom: {
+                            wheel: { enabled: true },
+                            pinch: { enabled: true },
+                            mode: 'xy'
+                        },
+                        pan: { enabled: true, mode: 'xy' }
+                    },
+                    legend: { display: true },
+                    tooltip: { mode: 'index', intersect: false }
+                },
+                scales: {
+                    x: { display: true, title: { display: true, text: 'Time', color: 'var(--text-color)' } },
+                    price: { 
+                        display: true, 
+                        title: { display: true, text: 'Price', color: 'var(--text-color)' },
+                        position: 'left'
+                    },
+                    rsi: { 
+                        display: document.getElementById('show-rsi').checked,
+                        title: { display: true, text: 'RSI', color: 'var(--text-color)' },
+                        position: 'right',
+                        min: 0,
+                        max: 100,
+                        grid: { drawOnChartArea: false }
+                    }
+                }
+            }
+        });
+
+        // Initialize Chart.js for ML feature importance
+        const mlFeatureCtx = document.getElementById('ml-feature-chart').getContext('2d');
+        const mlFeatureChart = new Chart(mlFeatureCtx, {
+            type: 'bar',
+            data: {
+                labels: ['RSI', 'MACD', 'Volatility'],
+                datasets: [{
+                    label: 'Feature Importance',
+                    data: [0, 0, 0],
+                    backgroundColor: 'rgba(33, 150, 243, 0.5)',
+                    borderColor: 'rgba(33, 150, 243, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: (context) => `${context.dataset.label}: ${context.parsed.y.toFixed(2)}`
+                        }
+                    }
+                },
+                scales: {
+                    x: { title: { display: true, text: 'Feature', color: 'var(--text-color)' } },
+                    y: { 
+                        title: { display: true, text: 'Importance', color: 'var(--text-color)' }, 
+                        beginAtZero: true,
+                        max: 1
+                    }
+                }
+            }
+        });
+
+        // Update price chart with candle data and indicators
         function updatePriceChart(candles, symbol) {
-            const ctx = document.getElementById('price-chart')?.getContext('2d');
-            if (!ctx) {
-                console.warn('Price chart canvas not found');
-                return;
-            }
+            if (!candles || !candles.length) return;
+            const indicators = window.derivBot.indicatorManager.getIndicators();
+            const candle = candles.find(c => c.symbol === symbol) || candles[candles.length - 1];
+            const timestamp = new Date(candle.time || candle.timestamp).toLocaleTimeString();
 
-            const labels = candles.map(c => new Date(c.timestamp).toLocaleTimeString());
-            const data = candles.map(c => c.close);
-
-            if (!priceChart) {
-                priceChart = new Chart(ctx, {
-                    type: window.derivBot?.config.chartType || 'line',
-                    data: {
-                        labels,
-                        datasets: [{
-                            label: `${symbol} Price`,
-                            data,
-                            borderColor: 'var(--primary-color)',
-                            backgroundColor: 'transparent',
-                            fill: false
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        scales: {
-                            x: { title: { display: true, text: 'Time' } },
-                            y: { title: { display: true, text: 'Price' } }
-                        }
-                    }
+            if (chartType === 'candlestick') {
+                priceChart.data.labels.push(timestamp);
+                priceChart.data.datasets[0].data.push({
+                    x: timestamp,
+                    y: [candle.open, candle.high, candle.low, candle.close]
                 });
             } else {
-                priceChart.data.labels = labels;
-                priceChart.data.datasets[0].data = data;
-                priceChart.update();
+                priceChart.data.labels.push(timestamp);
+                priceChart.data.datasets[0].data.push(candle.close);
             }
+            priceChart.data.datasets[1].data.push(indicators.rsi);
+            priceChart.data.datasets[2].data.push(indicators.bollingerBands.upper);
+            priceChart.data.datasets[3].data.push(indicators.bollingerBands.middle);
+            priceChart.data.datasets[4].data.push(indicators.bollingerBands.lower);
+            priceChart.data.datasets[5].data.push(indicators.movingAverage);
+
+            if (priceChart.data.labels.length > 50) {
+                priceChart.data.labels.shift();
+                priceChart.data.datasets.forEach(dataset => dataset.data.shift());
+            }
+            priceChart.update();
         }
 
-        /**
-         * Update ML feature importance chart
-         */
-        let mlChart = null;
-        function updateMLFeatureChart(featureImportance) {
-            const ctx = document.getElementById('ml-feature-chart')?.getContext('2d');
-            if (!ctx) {
-                console.warn('ML feature chart canvas not found');
-                return;
-            }
-
-            const labels = Object.keys(featureImportance);
-            const data = Object.values(featureImportance);
-
-            if (!mlChart) {
-                mlChart = new Chart(ctx, {
-                    type: 'bar',
-                    data: {
-                        labels,
-                        datasets: [{
-                            label: 'Feature Importance',
-                            data,
-                            backgroundColor: 'var(--primary-color)',
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        scales: {
-                            y: { beginAtZero: true, title: { display: true, text: 'Importance' } }
-                        }
-                    }
-                });
-            } else {
-                mlChart.data.labels = labels;
-                mlChart.data.datasets[0].data = data;
-                mlChart.update();
-            }
+        // Update ML feature chart
+        function updateMLFeatureChart(features) {
+            mlFeatureChart.data.datasets[0].data = [features.rsi || 0, features.macd || 0, features.volatility || 0];
+            const topFeature = Object.keys(features).reduce((a, b) => features[a] > features[b] ? a : b, 'rsi');
+            document.getElementById('ml-top-feature').textContent = topFeature.toUpperCase();
+            document.getElementById('ml-confidence').textContent = `${(Math.max(...Object.values(features)) * 100).toFixed(1)}%`;
+            mlFeatureChart.update();
         }
 
-        /**
-         * Notify contract purchase
-         */
+        // Notify contract purchase
         function notifyContractPurchase(details) {
             Toastify({
-                text: `Contract Purchased: ${details.contractType} on ${details.symbol} for $${details.buyPrice} (ID: ${details.contractId})`,
+                text: `Trade: ${details.contractType} on ${details.symbol} for $${details.buyPrice} (ID: ${details.contractId})`,
                 duration: 5000,
-                gravity: 'top',
-                position: 'right',
-                backgroundColor: 'var(--success-color)',
-                ariaLive: 'polite'
+                gravity: "top",
+                position: "right",
+                backgroundColor: "var(--success-color)",
+                className: "toast-notification",
+                ariaLive: "polite"
             }).showToast();
         }
 
-        /**
-         * Display data table
-         */
-        function displayDataTable(data, page) {
-            const tableHeader = document.getElementById('data-table-header');
+        // Data management with pagination
+        let currentPage = 1;
+        const itemsPerPage = 10;
+        function displayDataTable(data, page = 1) {
+            const dataType = document.getElementById('data-type').value;
+            const tableHead = document.getElementById('data-table-head');
             const tableBody = document.getElementById('data-table-body');
-            const pagination = document.getElementById('pagination');
-            if (!tableHeader || !tableBody || !pagination) {
-                console.warn('Data table elements not found');
-                return;
-            }
-
-            tableHeader.innerHTML = '';
+            tableHead.innerHTML = '';
             tableBody.innerHTML = '';
-            pagination.innerHTML = '';
 
-            if (!data || data.length === 0) {
-                tableBody.innerHTML = '<tr><td colspan="10">No data available</td></tr>';
+            if (!data || !data.length) {
+                tableBody.innerHTML = '<tr><td colspan="100">No data available</td></tr>';
                 return;
             }
 
-            const itemsPerPage = 10;
+            // Define headers based on data type
+            const headers = {
+                ticks: ['Symbol', 'Price', 'Time', 'Volume'],
+                candles: ['Symbol', 'Open', 'High', 'Low', 'Close', 'Volume', 'Time'],
+                trades: ['ID', 'Symbol', 'Result', 'P&L', 'RSI', 'MACD', 'Volatility', 'Timestamp']
+            };
+            const rowKeys = {
+                ticks: ['symbol', 'price', 'time', 'volume'],
+                candles: ['symbol', 'open', 'high', 'low', 'close', 'volume', 'time'],
+                trades: ['id', 'symbol', 'result', 'pnl', 'indicators.rsi', 'indicators.macd', 'indicators.volatility', 'timestamp']
+            };
+
+            // Create table headers
+            const headerRow = document.createElement('tr');
+            headers[dataType].forEach(header => {
+                const th = document.createElement('th');
+                th.textContent = header;
+                headerRow.appendChild(th);
+            });
+            tableHead.appendChild(headerRow);
+
+            // Paginate data
             const start = (page - 1) * itemsPerPage;
             const end = start + itemsPerPage;
             const paginatedData = data.slice(start, end);
 
-            // Generate headers
-            const headers = Object.keys(paginatedData[0]).filter(key => key !== 'indicators' && key !== 'marketConditions');
-            const headerRow = document.createElement('tr');
-            headers.forEach(header => {
-                const th = document.createElement('th');
-                th.textContent = header.charAt(0).toUpperCase() + header.slice(1);
-                headerRow.appendChild(th);
-            });
-            tableHeader.appendChild(headerRow);
-
-            // Generate rows
+            // Create table rows
             paginatedData.forEach(item => {
                 const row = document.createElement('tr');
-                headers.forEach(header => {
+                rowKeys[dataType].forEach(key => {
                     const td = document.createElement('td');
-                    td.textContent = item[header] || '-';
+                    const value = key.includes('.') ? key.split('.').reduce((obj, k) => obj?.[k], item) : item[key];
+                    td.textContent = value ? (typeof value === 'number' ? value.toFixed(2) : value) : '-';
                     row.appendChild(td);
                 });
                 tableBody.appendChild(row);
             });
 
-            // Generate pagination
-            const totalPages = Math.ceil(data.length / itemsPerPage);
-            for (let i = 1; i <= totalPages; i++) {
-                const button = document.createElement('button');
-                button.textContent = i;
-                button.className = i === page ? 'active' : '';
-                button.addEventListener('click', () => displayDataTable(data, i));
-                pagination.appendChild(button);
-            }
+            // Update pagination controls
+            const pageCount = Math.ceil(data.length / itemsPerPage);
+            document.getElementById('data-page-info').textContent = `Page ${page} of ${pageCount}`;
+            document.getElementById('data-prev-page').disabled = page === 1;
+            document.getElementById('data-next-page').disabled = page === pageCount;
         }
 
-        /**
-         * Handle view data button
-         */
-        document.getElementById('view-data')?.addEventListener('click', () => {
-            const dataType = document.getElementById('data-type')?.value;
-            const { loadData } = window.derivBot ? window.derivBot : { loadData: () => [] };
-            const data = loadData(dataType);
-            displayDataTable(data, 1);
+        document.getElementById('view-data-btn').addEventListener('click', async () => {
+            const dataType = document.getElementById('data-type').value;
+            document.getElementById('loading-spinner').style.display = 'block';
+            try {
+                const data = window.derivBot.loadData(dataType);
+                currentPage = 1;
+                displayDataTable(data, currentPage);
+                updateProgressBar(100);
+                Toastify({
+                    text: `Loaded ${data.length} ${dataType} records`,
+                    duration: 3000,
+                    gravity: "top",
+                    position: "right",
+                    backgroundColor: "var(--success-color)",
+                    ariaLive: "polite"
+                }).showToast();
+            } catch (error) {
+                Toastify({
+                    text: `Error loading ${dataType}: ${error.message}`,
+                    duration: 5000,
+                    gravity: "top",
+                    position: "right",
+                    backgroundColor: "var(--error-color)",
+                    ariaLive: "assertive"
+                }).showToast();
+            } finally {
+                document.getElementById('loading-spinner').style.display = 'none';
+            }
+        });
+
+        document.getElementById('clear-data-btn').addEventListener('click', () => {
+            const dataType = document.getElementById('data-type').value;
+            try {
+                window.derivBot.saveData(dataType, []);
+                displayDataTable([]);
+                updateProgressBar(0);
+                Toastify({
+                    text: `${dataType} data cleared`,
+                    duration: 3000,
+                    gravity: "top",
+                    position: "right",
+                    backgroundColor: "var(--success-color)",
+                    ariaLive: "polite"
+                }).showToast();
+            } catch (error) {
+                Toastify({
+                    text: `Error clearing ${dataType}: ${error.message}`,
+                    duration: 5000,
+                    gravity: "top",
+                    position: "right",
+                    backgroundColor: "var(--error-color)",
+                    ariaLive: "assertive"
+                }).showToast();
+            }
+        });
+
+        document.getElementById('export-data-btn').addEventListener('click', () => {
+            const dataType = document.getElementById('data-type').value;
+            try {
+                const data = window.derivBot.loadData(dataType);
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${dataType}_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+                Toastify({
+                    text: `${dataType} data exported`,
+                    duration: 3000,
+                    gravity: "top",
+                    position: "right",
+                    backgroundColor: "var(--success-color)",
+                    ariaLive: "polite"
+                }).showToast();
+            } catch (error) {
+                Toastify({
+                    text: `Error exporting ${dataType}: ${error.message}`,
+                    duration: 5000,
+                    gravity: "top",
+                    position: "right",
+                    backgroundColor: "var(--error-color)",
+                    ariaLive: "assertive"
+                }).showToast();
+            }
+        });
+
+        document.getElementById('data-prev-page').addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage--;
+                const dataType = document.getElementById('data-type').value;
+                const data = window.derivBot.loadData(dataType);
+                displayDataTable(data, currentPage);
+            }
+        });
+
+        document.getElementById('data-next-page').addEventListener('click', () => {
+            const dataType = document.getElementById('data-type').value;
+            const data = window.derivBot.loadData(dataType);
+            const pageCount = Math.ceil(data.length / itemsPerPage);
+            if (currentPage < pageCount) {
+                currentPage++;
+                displayDataTable(data, currentPage);
+            }
+        });
+
+        // Progress bar update
+        function updateProgressBar(percentage) {
+            const progressBar = document.getElementById('data-progress-bar');
+            progressBar.style.width = `${percentage}%`;
+            progressBar.parentElement.setAttribute('aria-valuenow', percentage);
+        }
+
+        // Chart indicator toggles
+        ['show-rsi', 'show-bollinger', 'show-ma'].forEach(id => {
+            document.getElementById(id).addEventListener('change', (e) => {
+                const indexMap = { 'show-rsi': 1, 'show-bollinger': [2, 3, 4], 'show-ma': 5 };
+                const indices = Array.isArray(indexMap[id]) ? indexMap[id] : [indexMap[id]];
+                indices.forEach(index => {
+                    priceChart.data.datasets[index].hidden = !e.target.checked;
+                });
+                priceChart.options.scales.rsi.display = document.getElementById('show-rsi').checked;
+                priceChart.update();
+                window.derivBot.log(`Toggled ${id} on chart`, 'info');
+            });
+        });
+
+        // Reset chart
+        document.getElementById('reset-chart-btn').addEventListener('click', () => {
+            priceChart.data.labels = [];
+            priceChart.data.datasets.forEach(dataset => dataset.data = []);
+            priceChart.update();
+            window.derivBot.log('Chart reset', 'info');
             Toastify({
-                text: `Displayed ${dataType} data`,
+                text: 'Chart reset successfully',
                 duration: 3000,
-                gravity: 'top',
-                position: 'right',
-                backgroundColor: 'var(--success-color)',
-                ariaLive: 'polite'
+                gravity: "top",
+                position: "right",
+                backgroundColor: "var(--success-color)",
+                ariaLive: "polite"
             }).showToast();
         });
 
-        /**
-         * Handle data import
-         */
-        document.getElementById('import-data')?.addEventListener('change', async (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            try {
-                const text = await file.text();
-                const importedData = JSON.parse(text);
-                localStorage.setItem('derivBotData', JSON.stringify(importedData));
-                Toastify({
-                    text: 'Data imported successfully',
-                    duration: 3000,
-                    gravity: 'top',
-                    position: 'right',
-                    backgroundColor: 'var(--success-color)',
-                    ariaLive: 'polite'
-                }).showToast();
-                const dataType = document.getElementById('data-type').value;
-                displayDataTable(importedData[dataType], 1);
-                // Retrain ML model
-                const { trainModel } = window.derivBot || {};
-                if (trainModel) {
-                    const trainingResult = trainModel();
-                    if (!trainingResult.error) {
-                        updateMLFeatureChart(trainingResult.featureImportance);
-                    }
+        // Chart type toggle
+        document.getElementById('chart-type').addEventListener('change', (e) => {
+            chartType = e.target.value;
+            priceChart.config.type = chartType;
+            priceChart.data.datasets[0] = {
+                label: 'Price',
+                data: [],
+                borderColor: 'var(--chart-color)',
+                backgroundColor: (ctx) => ctx.raw && ctx.raw.y && ctx.raw.y[3] >= ctx.raw.y[0] ? 'rgba(40, 167, 69, 0.5)' : 'rgba(220, 53, 69, 0.5)',
+                tension: chartType === 'line' ? 0.1 : 0
+            };
+            priceChart.update();
+            window.derivBot.log(`Chart type changed to ${chartType}`, 'info');
+            const candles = window.derivBot.candleManager.getCandles(window.derivBot.config.symbol);
+            candles.forEach(candle => updatePriceChart([candle], window.derivBot.config.symbol));
+        });
+
+        // Theme toggle
+        document.getElementById('theme-toggle').addEventListener('click', () => {
+            document.body.classList.toggle('dark-mode');
+            const isDark = document.body.classList.contains('dark-mode');
+            document.getElementById('theme-toggle').innerHTML = isDark ? '<i class="fas fa-sun"></i>' : '<i class="fas fa-moon"></i>';
+            priceChart.options.scales.x.title.color = isDark ? '#fff' : '#333';
+            priceChart.options.scales.price.title.color = isDark ? '#fff' : '#333';
+            priceChart.options.scales.rsi.title.color = isDark ? '#fff' : '#333';
+            priceChart.data.datasets[0].borderColor = isDark ? '#f39c12' : '#007bff';
+            priceChart.update();
+            mlFeatureChart.options.scales.x.title.color = isDark ? '#fff' : '#333';
+            mlFeatureChart.options.scales.y.title.color = isDark ? '#fff' : '#333';
+            mlFeatureChart.update();
+            Toastify({
+                text: `Switched to ${isDark ? 'dark' : 'light'} mode`,
+                duration: 3000,
+                gravity: "top",
+                position: "right",
+                backgroundColor: "var(--success-color)",
+                ariaLive: "polite"
+            }).showToast();
+        });
+
+        // Log filtering
+        document.getElementById('log-filter').addEventListener('change', (e) => {
+            const filter = e.target.value;
+            document.querySelectorAll('.log-entry').forEach(entry => {
+                entry.style.display = filter === 'all' || entry.classList.contains(filter) ? 'block' : 'none';
+            });
+        });
+
+        // Log search
+        document.getElementById('log-search').addEventListener('input', (e) => {
+            const search = e.target.value.toLowerCase();
+            document.querySelectorAll('.log-entry').forEach(entry => {
+                entry.style.display = entry.textContent.toLowerCase().includes(search) ? 'block' : 'none';
+            });
+        });
+
+        // Export logs
+        document.getElementById('export-log').addEventListener('click', () => {
+            const logs = Array.from(document.querySelectorAll('.log-entry')).map(entry => entry.textContent).join('\n');
+            const blob = new Blob([logs], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `trading_log_${new Date().toISOString().replace(/[:.]/g, '-')}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+            Toastify({
+                text: 'Logs exported successfully',
+                duration: 3000,
+                gravity: "top",
+                position: "right",
+                backgroundColor: "var(--success-color)",
+                ariaLive: "polite"
+            }).showToast();
+        });
+
+        // Reset configuration
+        document.getElementById('reset-config-btn').addEventListener('click', () => {
+            const defaults = {
+                'strategy-select': 'martingale',
+                'symbols': ['R_10'],
+                'trade-type': 'CALL',
+                'duration': 60,
+                'stake': 1,
+                'max-loss': 50,
+                'max-profit': 100,
+                'max-trades': 50,
+                'multiplier': 2.1,
+                'max-drawdown': 20,
+                'max-consecutive-losses': 5,
+                'cooldown-period': 300000,
+                'position-sizing': 'kelly',
+                'fixed-fraction': 0.02,
+                'custom-strategy-rules': '[]',
+                'candle-timeframe': 60,
+                'chart-type': 'line',
+                'stop-loss-enabled': true,
+                'take-profit-enabled': true,
+                'multi-timeframe': true,
+                'dynamic-switching': true,
+                'use-candle-patterns': true
+            };
+
+            Object.entries(defaults).forEach(([id, value]) => {
+                const element = document.getElementById(id);
+                if (element.tagName === 'SELECT' && id === 'symbols') {
+                    Array.from(element.options).forEach(opt => opt.selected = value.includes(opt.value));
+                } else if (element.tagName === 'INPUT' && element.type === 'checkbox') {
+                    element.checked = value;
+                } else {
+                    element.value = value;
                 }
-            } catch (error) {
-                Toastify({
-                    text: `Error importing data: ${error.message}`,
-                    duration: 5000,
-                    gravity: 'top',
-                    position: 'right',
-                    backgroundColor: 'var(--error-color)',
-                    ariaLive: 'assertive'
-                }).showToast();
-            }
+            });
+
+            window.derivBot.updateConfig();
+            window.derivBot.log('Configuration reset to defaults', 'info');
+            Toastify({
+                text: 'Configuration reset',
+                duration: 3000,
+                gravity: "top",
+                position: "right",
+                backgroundColor: "var(--success-color)",
+                ariaLive: "polite"
+            }).showToast();
+        });
+
+        // Help modal
+        document.getElementById('help-btn').addEventListener('click', () => {
+            document.getElementById('help-modal').style.display = 'block';
+        });
+
+        document.getElementById('close-help-modal').addEventListener('click', () => {
+            document.getElementById('help-modal').style.display = 'none';
+        });
+
+        // Custom tooltips
+        document.querySelectorAll('[data-tooltip]').forEach(element => {
+            element.addEventListener('mouseenter', (e) => {
+                const tooltip = document.createElement('div');
+                tooltip.className = 'custom-tooltip';
+                tooltip.textContent = e.target.getAttribute('data-tooltip');
+                document.body.appendChild(tooltip);
+                const rect = e.target.getBoundingClientRect();
+                tooltip.style.left = `${rect.left + window.scrollX + rect.width / 2}px`;
+                tooltip.style.top = `${rect.top + window.scrollY - 40}px`;
+                e.target.addEventListener('mouseleave', () => {
+                    tooltip.remove();
+                }, { once: true });
+            });
+        });
+
+        // Accessibility: Keyboard navigation
+        document.querySelectorAll('button, input, select, textarea').forEach(element => {
+            element.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    e.target.click();
+                    e.target.dispatchEvent(new Event('change'));
+                }
+            });
         });
     </script>
-    <script type="module" src="js/script.js"></script>
 </body>
 </html>

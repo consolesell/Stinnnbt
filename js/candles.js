@@ -2,10 +2,45 @@
  * CandleManager - Manages candlestick data and pattern detection
  * @class
  */
+import { saveData, loadData } from './pipeline.js';
+
 export class CandleManager {
     constructor({ timeframe = 60 } = {}) {
         this.timeframe = timeframe * 1000; // Convert to milliseconds
         this.candles = new Map(); // Map<symbol, Array<Candle>>
+        this.loadCandles();
+    }
+
+    /**
+     * Load candles from localStorage
+     */
+    loadCandles() {
+        try {
+            const candlesData = loadData('candles') || [];
+            candlesData.forEach(candle => {
+                if (!this.candles.has(candle.symbol)) {
+                    this.candles.set(candle.symbol, []);
+                }
+                this.candles.get(candle.symbol).push(candle);
+            });
+            console.log(`Loaded ${candlesData.length} candles from storage`);
+        } catch (error) {
+            console.error(`Error loading candles: ${error.message}`);
+        }
+    }
+
+    /**
+     * Save candles to localStorage
+     * @param {string} symbol - Market symbol
+     */
+    saveCandles(symbol) {
+        try {
+            const candles = this.candles.get(symbol) || [];
+            saveData('candles', candles);
+            console.log(`Saved ${candles.length} candles for ${symbol} to storage`);
+        } catch (error) {
+            console.error(`Error saving candles: ${error.message}`);
+        }
     }
 
     /**
@@ -15,6 +50,7 @@ export class CandleManager {
     initializeSymbol(symbol) {
         if (!this.candles.has(symbol)) {
             this.candles.set(symbol, []);
+            console.log(`Initialized candle storage for ${symbol}`);
         }
     }
 
@@ -24,6 +60,7 @@ export class CandleManager {
      */
     setTimeframe(timeframe) {
         this.timeframe = timeframe * 1000;
+        console.log(`Set candle timeframe to ${timeframe} seconds`);
     }
 
     /**
@@ -32,6 +69,11 @@ export class CandleManager {
      * @param {Object} tick - Tick data { price, time, volume }
      */
     addTick(symbol, tick) {
+        if (!symbol || !tick || !tick.price || !tick.time) {
+            console.error('Invalid tick data:', { symbol, tick });
+            return;
+        }
+
         if (!this.candles.has(symbol)) {
             this.initializeSymbol(symbol);
         }
@@ -61,6 +103,8 @@ export class CandleManager {
         if (candles.length > 100) {
             candles.shift();
         }
+
+        this.saveCandles(symbol);
     }
 
     /**
@@ -92,7 +136,10 @@ export class CandleManager {
      */
     detectPattern(symbol) {
         const candles = this.candles.get(symbol);
-        if (!candles || candles.length < 3) return null;
+        if (!candles || candles.length < 3) {
+            console.warn(`Insufficient candles for pattern detection: ${symbol}`);
+            return null;
+        }
 
         const [prev2, prev, current] = candles.slice(-3);
 
@@ -132,6 +179,25 @@ export class CandleManager {
             (current.open - current.low) <= (current.open - current.close) * 0.3 && 
             (current.high - current.open) >= (current.open - current.close) * 2) {
             return 'ShootingStar';
+        }
+
+        // Evening Star (3-candle bearish reversal)
+        if (prev2.close > prev2.open && 
+            Math.abs(prev.open - prev.close) <= (prev.high - prev.low) * 0.3 && 
+            current.close < current.open && current.close < prev2.open) {
+            return 'EveningStar';
+        }
+
+        // Bullish Harami
+        if (prev.close < prev.open && current.close > current.open && 
+            current.open > prev.close && current.close < prev.open) {
+            return 'BullishHarami';
+        }
+
+        // Bearish Harami
+        if (prev.close > prev.open && current.close < current.open && 
+            current.open < prev.close && current.close > prev.open) {
+            return 'BearishHarami';
         }
 
         return null;

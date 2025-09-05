@@ -5,19 +5,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>sbl STINGRAY V4 Advanced Deriv Trading Bot</title>
     <link rel="stylesheet" href="styles.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom"></script>
-    <script src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/toastify-js@1.12.0/src/toastify.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/toastify-js@1.12.0/src/toastify.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css" integrity="sha512-Kc323vGBEqzTmouAECnVceyQqyqdsSiqLQISBL29aUW4U/M7pSPA/gEUZQqv1cwx4OnYxTxve5UMg5GT6L4JJg==" crossorigin="anonymous" referrerpolicy="no-referrer">
 </head>
 <body>
     <div class="container">
         <header>
-            <h1><i class="fas fa-robot"></i> Advanced Deriv Trading Bot</h1>
+            <h1><i class="fas fa-robot"></i> sbl STINGRAY V4 Trading Bot</h1>
             <div class="header-controls">
-                <button id="theme-toggle" class="theme-toggle btn secondary" aria-label="Toggle light/dark mode"><i class="fas fa-moon"></i></button>
-                <button id="help-btn" class="btn secondary" aria-label="Show help"><i class="fas fa-question-circle"></i> Help</button>
+                <button id="theme-toggle" class="theme-toggle btn secondary" aria-label="Toggle light/dark mode">
+                    <i class="fas fa-moon"></i>
+                </button>
+                <button id="help-btn" class="btn secondary" aria-label="Show help">
+                    <i class="fas fa-question-circle"></i> Help
+                </button>
+                <button id="fullscreen-btn" class="btn secondary" aria-label="Toggle fullscreen">
+                    <i class="fas fa-expand"></i>
+                </button>
             </div>
         </header>
 
@@ -53,16 +60,21 @@
                 <section class="card">
                     <div class="form-group">
                         <label for="app-id">App ID:</label>
-                        <input type="number" id="app-id" value="1089" min="1" aria-describedby="app-id-help" data-tooltip="Your unique Deriv App ID">
+                        <input type="number" id="app-id" value="1089" min="1" aria-describedby="app-id-help" data-tooltip="Your unique Deriv App ID" required>
                         <small id="app-id-help">Enter your Deriv App ID</small>
                     </div>
                     <div class="form-group">
                         <label for="api-token">API Token:</label>
-                        <input type="password" id="api-token" placeholder="Enter your API token" aria-describedby="api-token-help" data-tooltip="Obtain from Deriv API settings">
+                        <div class="input-group">
+                            <input type="password" id="api-token" placeholder="Enter your API token" aria-describedby="api-token-help" data-tooltip="Obtain from Deriv API settings">
+                            <button id="toggle-token-visibility" class="btn secondary" aria-label="Toggle API token visibility">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
                         <small id="api-token-help">Obtain from Deriv API settings</small>
                     </div>
                     <div class="status">
-                        <span id="status-indicator" class="status-indicator"></span>
+                        <span id="status-indicator" class="status-indicator" aria-live="polite"></span>
                         <span id="connection-status" role="status">Disconnected</span>
                     </div>
                     <button id="connect-btn" class="btn primary"><i class="fas fa-link"></i> Connect</button>
@@ -75,7 +87,7 @@
                 <section class="card">
                     <div class="form-group">
                         <label for="strategy-select">Strategy:</label>
-                        <select id="strategy-select" data-tooltip="Select trading strategy">
+                        <select id="strategy-select" data-tooltip="Select trading strategy" aria-label="Trading strategy">
                             <option value="martingale">Martingale</option>
                             <option value="dalembert">D'Alembert</option>
                             <option value="trend-follow">Trend Following</option>
@@ -89,60 +101,62 @@
                     </div>
                     <div class="form-group">
                         <label for="symbols">Symbols:</label>
-                        <select id="symbols" multiple data-tooltip="Select one or more trading symbols">
+                        <select id="symbols" multiple data-tooltip="Select one or more trading symbols" aria-label="Trading symbols">
                             <option value="R_10" selected>Volatility 10</option>
                             <option value="R_25">Volatility 25</option>
                             <option value="R_50">Volatility 50</option>
                             <option value="R_75">Volatility 75</option>
                             <option value="R_100">Volatility 100</option>
+                            <option value="1HZ10V">Volatility 10 (1s)</option>
+                            <option value="1HZ25V">Volatility 25 (1s)</option>
                         </select>
                     </div>
                     <div class="form-group">
                         <label for="trade-type">Trade Type:</label>
-                        <select id="trade-type" data-tooltip="Select CALL or PUT">
+                        <select id="trade-type" data-tooltip="Select CALL or PUT" aria-label="Trade type">
                             <option value="CALL">Call</option>
                             <option value="PUT">Put</option>
                         </select>
                     </div>
                     <div class="form-group">
                         <label for="duration">Duration (seconds):</label>
-                        <input type="number" id="duration" value="60" min="1" step="1" data-tooltip="Trade duration in seconds">
+                        <input type="number" id="duration" value="60" min="1" step="1" data-tooltip="Trade duration in seconds" aria-label="Trade duration">
                     </div>
                     <div class="form-group">
                         <label for="stake">Stake (USD):</label>
-                        <input type="number" id="stake" value="1" min="0.35" step="0.1" data-tooltip="Amount to risk per trade">
+                        <input type="number" id="stake" value="1" min="0.35" step="0.1" data-tooltip="Amount to risk per trade" aria-label="Stake amount">
                     </div>
                     <div class="form-group">
                         <label for="max-loss">Max Loss (USD):</label>
-                        <input type="number" id="max-loss" value="50" min="0" data-tooltip="Maximum loss before stopping">
+                        <input type="number" id="max-loss" value="50" min="0" step="1" data-tooltip="Maximum loss before stopping" aria-label="Maximum loss">
                     </div>
                     <div class="form-group">
                         <label for="max-profit">Max Profit (USD):</label>
-                        <input type="number" id="max-profit" value="100" min="0" data-tooltip="Target profit to stop trading">
+                        <input type="number" id="max-profit" value="100" min="0" step="1" data-tooltip="Target profit to stop trading" aria-label="Maximum profit">
                     </div>
                     <div class="form-group">
                         <label for="max-trades">Max Trades:</label>
-                        <input type="number" id="max-trades" value="50" min="1" step="1" data-tooltip="Maximum number of trades per session">
+                        <input type="number" id="max-trades" value="50" min="1" step="1" data-tooltip="Maximum number of trades per session" aria-label="Maximum trades">
                     </div>
                     <div class="form-group">
                         <label for="multiplier">Martingale Multiplier:</label>
-                        <input type="number" id="multiplier" value="2.1" min="1" step="0.1" data-tooltip="Stake multiplier for Martingale strategy">
+                        <input type="number" id="multiplier" value="2.1" min="1" step="0.1" data-tooltip="Stake multiplier for Martingale strategy" aria-label="Martingale multiplier">
                     </div>
                     <div class="form-group">
                         <label for="max-drawdown">Max Drawdown (%):</label>
-                        <input type="number" id="max-drawdown" value="20" min="0" step="1" data-tooltip="Maximum percentage loss of balance">
+                        <input type="number" id="max-drawdown" value="20" min="0" step="1" data-tooltip="Maximum percentage loss of balance" aria-label="Maximum drawdown">
                     </div>
                     <div class="form-group">
                         <label for="max-consecutive-losses">Max Consecutive Losses:</label>
-                        <input type="number" id="max-consecutive-losses" value="5" min="1" step="1" data-tooltip="Maximum consecutive losing trades">
+                        <input type="number" id="max-consecutive-losses" value="5" min="1" step="1" data-tooltip="Maximum consecutive losing trades" aria-label="Maximum consecutive losses">
                     </div>
                     <div class="form-group">
                         <label for="cooldown-period">Cooldown Period (ms):</label>
-                        <input type="number" id="cooldown-period" value="300000" min="1000" step="1000" data-tooltip="Pause duration after loss limit">
+                        <input type="number" id="cooldown-period" value="300000" min="1000" step="1000" data-tooltip="Pause duration after loss limit" aria-label="Cooldown period">
                     </div>
                     <div class="form-group">
                         <label for="position-sizing">Position Sizing:</label>
-                        <select id="position-sizing" data-tooltip="Method for determining trade size">
+                        <select id="position-sizing" data-tooltip="Method for determining trade size" aria-label="Position sizing method">
                             <option value="kelly">Kelly Criterion</option>
                             <option value="fixed">Fixed Fraction</option>
                             <option value="volatility">Volatility Adjusted</option>
@@ -150,29 +164,29 @@
                     </div>
                     <div class="form-group">
                         <label for="fixed-fraction">Fixed Fraction (%):</label>
-                        <input type="number" id="fixed-fraction" value="0.02" min="0" step="0.01" data-tooltip="Percentage of balance for fixed sizing">
+                        <input type="number" id="fixed-fraction" value="0.02" min="0" step="0.01" data-tooltip="Percentage of balance for fixed sizing" aria-label="Fixed fraction">
                     </div>
                     <div class="form-group">
                         <label for="custom-strategy-rules">Custom Strategy Rules (JSON):</label>
-                        <textarea id="custom-strategy-rules" rows="4" data-tooltip="Define custom trading rules in JSON format">[]</textarea>
+                        <textarea id="custom-strategy-rules" rows="4" data-tooltip="Define custom trading rules in JSON format" aria-label="Custom strategy rules">[]</textarea>
                     </div>
                     <div class="form-group">
                         <label for="candle-timeframe">Candle Timeframe (seconds):</label>
-                        <input type="number" id="candle-timeframe" value="60" min="1" step="1" data-tooltip="Timeframe for candlestick chart">
+                        <input type="number" id="candle-timeframe" value="60" min="1" step="1" data-tooltip="Timeframe for candlestick chart" aria-label="Candle timeframe">
                     </div>
                     <div class="form-group">
                         <label for="chart-type">Chart Type:</label>
-                        <select id="chart-type" data-tooltip="Select chart display type">
+                        <select id="chart-type" data-tooltip="Select chart display type" aria-label="Chart type">
                             <option value="line">Line</option>
                             <option value="candlestick">Candlestick</option>
                         </select>
                     </div>
                     <div class="form-group checkbox-group">
-                        <label><input type="checkbox" id="stop-loss-enabled" checked> Enable Stop Loss</label>
-                        <label><input type="checkbox" id="take-profit-enabled" checked> Enable Take Profit</label>
-                        <label><input type="checkbox" id="multi-timeframe" checked> Use Multi-Timeframe</label>
-                        <label><input type="checkbox" id="dynamic-switching" checked> Dynamic Strategy Switching</label>
-                        <label><input type="checkbox" id="use-candle-patterns" checked> Use Candle Patterns</label>
+                        <label><input type="checkbox" id="stop-loss-enabled" checked aria-label="Enable stop loss"> Enable Stop Loss</label>
+                        <label><input type="checkbox" id="take-profit-enabled" checked aria-label="Enable take profit"> Enable Take Profit</label>
+                        <label><input type="checkbox" id="multi-timeframe" checked aria-label="Use multi-timeframe analysis"> Use Multi-Timeframe</label>
+                        <label><input type="checkbox" id="dynamic-switching" checked aria-label="Enable dynamic strategy switching"> Dynamic Strategy Switching</label>
+                        <label><input type="checkbox" id="use-candle-patterns" checked aria-label="Use candlestick patterns"> Use Candle Patterns</label>
                     </div>
                     <div class="button-group">
                         <button id="start-btn" class="btn primary"><i class="fas fa-play"></i> Start Trading</button>
@@ -191,10 +205,24 @@
                 <section class="card">
                     <div class="form-group">
                         <label for="data-type">Data Type:</label>
-                        <select id="data-type" data-tooltip="Select data type to view or manage">
+                        <select id="data-type" data-tooltip="Select data type to view or manage" aria-label="Data type">
                             <option value="ticks">Ticks</option>
                             <option value="candles">Candles</option>
                             <option value="trades">Trades</option>
+                            <option value="backtest_trades">Backtest Trades</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="data-filter">Filter:</label>
+                        <input type="text" id="data-filter" placeholder="Filter data..." aria-label="Filter data table" data-tooltip="Filter table by keyword">
+                    </div>
+                    <div class="form-group">
+                        <label for="data-sort">Sort By:</label>
+                        <select id="data-sort" data-tooltip="Sort table by column" aria-label="Sort column">
+                            <option value="timestamp|desc">Timestamp (Newest)</option>
+                            <option value="timestamp|asc">Timestamp (Oldest)</option>
+                            <option value="pnl|desc">P&L (High to Low)</option>
+                            <option value="pnl|asc">P&L (Low to High)</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -221,19 +249,20 @@
             </details>
 
             <!-- Market Data -->
-            <details>
+            <details open>
                 <summary><i class="fas fa-chart-bar"></i> Market Data</summary>
                 <section class="card">
                     <div class="form-group checkbox-group">
-                        <label><input type="checkbox" id="show-rsi" checked> RSI</label>
-                        <label><input type="checkbox" id="show-bollinger" checked> Bollinger Bands</label>
-                        <label><input type="checkbox" id="show-ma" checked> Moving Average</label>
+                        <label><input type="checkbox" id="show-rsi" checked aria-label="Show RSI on chart"> RSI</label>
+                        <label><input type="checkbox" id="show-bollinger" checked aria-label="Show Bollinger Bands on chart"> Bollinger Bands</label>
+                        <label><input type="checkbox" id="show-ma" checked aria-label="Show Moving Average on chart"> Moving Average</label>
+                        <label><input type="checkbox" id="show-macd" aria-label="Show MACD on chart"> MACD</label>
                     </div>
-                    <canvas id="price-chart" height="200"></canvas>
+                    <canvas id="price-chart" height="200" role="img" aria-label="Price chart with indicators"></canvas>
                     <div class="stats-grid">
                         <div class="stat" title="Latest tick price" role="status">
                             <span class="stat-label">Current Price:</span>
-                            <span id="current-price" class="stat-value">0.00000</span>
+                            <span id="current-price-display" class="stat-value">0.00000</span>
                         </div>
                         <div class="stat" title="Current market volatility" role="status">
                             <span class="stat-label">Volatility:</span>
@@ -342,7 +371,7 @@
                             <span id="ml-top-feature" class="stat-value">-</span>
                         </div>
                     </div>
-                    <canvas id="ml-feature-chart" height="100"></canvas>
+                    <canvas id="ml-feature-chart" height="100" role="img" aria-label="ML feature importance chart"></canvas>
                 </section>
             </details>
 
@@ -365,7 +394,7 @@
                         </div>
                         <div class="stat" role="status">
                             <span class="stat-label">Win Rate:</span>
-                            <span id="win-rate" class="stat-value">0%</span>
+                            <span id="win-rate-stats" class="stat-value">0%</span>
                         </div>
                         <div class="stat" role="status">
                             <span class="stat-label">Current Streak:</span>
@@ -373,11 +402,11 @@
                         </div>
                         <div class="stat" role="status">
                             <span class="stat-label">Total P&L:</span>
-                            <span id="total-pnl" class="stat-value">$0.00</span>
+                            <span id="total-pnl-stats" class="stat-value">$0.00</span>
                         </div>
                         <div class="stat" role="status">
                             <span class="stat-label">Balance:</span>
-                            <span id="balance" class="stat-value">$0.00</span>
+                            <span id="balance-stats" class="stat-value">$0.00</span>
                         </div>
                         <div class="stat" role="status">
                             <span class="stat-label">Last Trade:</span>
@@ -394,10 +423,11 @@
                     <table id="strategy-stats-table">
                         <thead>
                             <tr>
-                                <th>Strategy</th>
-                                <th>Wins</th>
-                                <th>Losses</th>
-                                <th>Win Rate</th>
+                                <th scope="col">Strategy</th>
+                                <th scope="col">Wins</th>
+                                <th scope="col">Losses</th>
+                                <th scope="col">Win Rate</th>
+                                <th scope="col">Total P&L</th>
                             </tr>
                         </thead>
                         <tbody id="strategy-stats-body"></tbody>
@@ -426,8 +456,8 @@
                     <table id="correlation-table">
                         <thead>
                             <tr>
-                                <th>Symbol Pair</th>
-                                <th>Correlation</th>
+                                <th scope="col">Symbol Pair</th>
+                                <th scope="col">Correlation</th>
                             </tr>
                         </thead>
                         <tbody id="correlation-body"></tbody>
@@ -441,7 +471,7 @@
                 <section class="card log-section">
                     <div class="log-controls">
                         <input type="text" id="log-search" placeholder="Search logs..." aria-label="Search logs" data-tooltip="Search through log entries">
-                        <select id="log-filter" data-tooltip="Filter logs by type">
+                        <select id="log-filter" data-tooltip="Filter logs by type" aria-label="Filter log type">
                             <option value="all">All</option>
                             <option value="info">Info</option>
                             <option value="success">Success</option>
@@ -452,7 +482,7 @@
                         <button id="clear-log" class="btn secondary"><i class="fas fa-trash"></i> Clear Log</button>
                         <button id="export-log" class="btn secondary"><i class="fas fa-download"></i> Export Log</button>
                     </div>
-                    <div id="log-content" class="log-content"></div>
+                    <div id="log-content" class="log-content" role="log" aria-live="polite"></div>
                 </section>
             </details>
 
@@ -462,9 +492,9 @@
                     <h2 id="help-modal-title">Help & Support</h2>
                     <p>Visit the following resources for assistance:</p>
                     <ul>
-                        <li><a href="https://x.ai/api" target="_blank">xAI API Documentation</a></li>
-                        <li><a href="https://help.x.com" target="_blank">X Support</a></li>
-                        <li><a href="https://deriv.com" target="_blank">Deriv API Setup</a></li>
+                        <li><a href="https://x.ai/api" target="_blank" rel="noopener">xAI API Documentation</a></li>
+                        <li><a href="https://help.x.com/en/using-x/x-premium" target="_blank" rel="noopener">X Support</a></li>
+                        <li><a href="https://api.deriv.com" target="_blank" rel="noopener">Deriv API Documentation</a></li>
                     </ul>
                     <button id="close-help-modal" class="btn secondary"><i class="fas fa-times"></i> Close</button>
                 </div>
@@ -490,22 +520,26 @@
                         label: 'Price',
                         data: [],
                         borderColor: 'var(--chart-color)',
-                        backgroundColor: (ctx) => ctx.raw && ctx.raw.y && ctx.raw.y[3] >= ctx.raw.y[0] ? 'rgba(40, 167, 69, 0.5)' : 'rgba(220, 53, 69, 0.5)',
-                        tension: chartType === 'line' ? 0.1 : 0
+                        backgroundColor: (ctx) => ctx.raw?.y && ctx.raw.y[3] >= ctx.raw.y[0] ? 'rgba(40, 167, 69, 0.5)' : 'rgba(220, 53, 69, 0.5)',
+                        tension: chartType === 'line' ? 0.1 : 0,
+                        fill: false,
+                        parsing: chartType === 'candlestick' ? { xAxisKey: 'x', yAxisKey: 'y' } : false
                     },
                     {
                         label: 'RSI',
                         data: [],
                         borderColor: '#ff9800',
                         yAxisID: 'rsi',
-                        hidden: !document.getElementById('show-rsi').checked
+                        hidden: !document.getElementById('show-rsi').checked,
+                        fill: false
                     },
                     {
                         label: 'Bollinger Upper',
                         data: [],
                         borderColor: '#2196f3',
                         yAxisID: 'price',
-                        hidden: !document.getElementById('show-bollinger').checked
+                        hidden: !document.getElementById('show-bollinger').checked,
+                        fill: false
                     },
                     {
                         label: 'Bollinger Middle',
@@ -513,26 +547,58 @@
                         borderColor: '#2196f3',
                         borderDash: [5, 5],
                         yAxisID: 'price',
-                        hidden: !document.getElementById('show-bollinger').checked
+                        hidden: !document.getElementById('show-bollinger').checked,
+                        fill: false
                     },
                     {
                         label: 'Bollinger Lower',
                         data: [],
                         borderColor: '#2196f3',
                         yAxisID: 'price',
-                        hidden: !document.getElementById('show-bollinger').checked
+                        hidden: !document.getElementById('show-bollinger').checked,
+                        fill: {
+                            target: { value: 'Bollinger Upper' },
+                            below: 'rgba(33, 150, 243, 0.1)',
+                            above: 'rgba(33, 150, 243, 0.1)'
+                        }
                     },
                     {
                         label: 'Moving Average',
                         data: [],
                         borderColor: '#4caf50',
                         yAxisID: 'price',
-                        hidden: !document.getElementById('show-ma').checked
+                        hidden: !document.getElementById('show-ma').checked,
+                        fill: false
+                    },
+                    {
+                        label: 'MACD Line',
+                        data: [],
+                        borderColor: '#ff5722',
+                        yAxisID: 'macd',
+                        hidden: !document.getElementById('show-macd').checked,
+                        fill: false
+                    },
+                    {
+                        label: 'MACD Signal',
+                        data: [],
+                        borderColor: '#0288d1',
+                        yAxisID: 'macd',
+                        hidden: !document.getElementById('show-macd').checked,
+                        fill: false
+                    },
+                    {
+                        label: 'MACD Histogram',
+                        data: [],
+                        type: 'bar',
+                        backgroundColor: (ctx) => ctx.raw > 0 ? 'rgba(40, 167, 69, 0.5)' : 'rgba(220, 53, 69, 0.5)',
+                        yAxisID: 'macd',
+                        hidden: !document.getElementById('show-macd').checked
                     }
                 ]
             },
             options: {
                 responsive: true,
+                maintainAspectRatio: false,
                 plugins: {
                     zoom: {
                         zoom: {
@@ -542,15 +608,35 @@
                         },
                         pan: { enabled: true, mode: 'xy' }
                     },
-                    legend: { display: true },
-                    tooltip: { mode: 'index', intersect: false }
+                    legend: { 
+                        display: true,
+                        labels: { color: 'var(--text-color)' }
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                        callbacks: {
+                            label: (context) => {
+                                const { dataset, parsed } = context;
+                                if (dataset.label === 'Price' && chartType === 'candlestick') {
+                                    return `O: ${parsed.y[0].toFixed(5)}, H: ${parsed.y[1].toFixed(5)}, L: ${parsed.y[2].toFixed(5)}, C: ${parsed.y[3].toFixed(5)}`;
+                                }
+                                return `${dataset.label}: ${parsed.y.toFixed(2)}`;
+                            }
+                        }
+                    }
                 },
                 scales: {
-                    x: { display: true, title: { display: true, text: 'Time', color: 'var(--text-color)' } },
+                    x: { 
+                        type: 'time',
+                        time: { unit: 'second', displayFormats: { second: 'HH:mm:ss' } },
+                        title: { display: true, text: 'Time', color: 'var(--text-color)' }
+                    },
                     price: { 
                         display: true, 
                         title: { display: true, text: 'Price', color: 'var(--text-color)' },
-                        position: 'left'
+                        position: 'left',
+                        grid: { color: 'var(--grid-color)' }
                     },
                     rsi: { 
                         display: document.getElementById('show-rsi').checked,
@@ -558,7 +644,15 @@
                         position: 'right',
                         min: 0,
                         max: 100,
-                        grid: { drawOnChartArea: false }
+                        grid: { drawOnChartArea: false },
+                        ticks: { color: 'var(--text-color)' }
+                    },
+                    macd: {
+                        display: document.getElementById('show-macd').checked,
+                        title: { display: true, text: 'MACD', color: 'var(--text-color)' },
+                        position: 'right',
+                        grid: { drawOnChartArea: false },
+                        ticks: { color: 'var(--text-color)' }
                     }
                 }
             }
@@ -580,7 +674,9 @@
             },
             options: {
                 responsive: true,
+                maintainAspectRatio: false,
                 plugins: {
+                    legend: { labels: { color: 'var(--text-color)' } },
                     tooltip: {
                         callbacks: {
                             label: (context) => `${context.dataset.label}: ${context.parsed.y.toFixed(2)}`
@@ -588,22 +684,30 @@
                     }
                 },
                 scales: {
-                    x: { title: { display: true, text: 'Feature', color: 'var(--text-color)' } },
+                    x: { 
+                        title: { display: true, text: 'Feature', color: 'var(--text-color)' },
+                        ticks: { color: 'var(--text-color)' }
+                    },
                     y: { 
-                        title: { display: true, text: 'Importance', color: 'var(--text-color)' }, 
+                        title: { display: true, text: 'Importance', color: 'var(--text-color)' },
                         beginAtZero: true,
-                        max: 1
+                        max: 1,
+                        ticks: { color: 'var(--text-color)' },
+                        grid: { color: 'var(--grid-color)' }
                     }
                 }
             }
         });
 
         // Update price chart with candle data and indicators
-        function updatePriceChart(candles, symbol) {
-            if (!candles || !candles.length) return;
+        window.updatePriceChart = function(candles, symbol) {
+            if (!candles?.length) {
+                window.derivBot.log('No candles provided for chart update', 'warning');
+                return;
+            }
             const indicators = window.derivBot.indicatorManager.getIndicators();
             const candle = candles.find(c => c.symbol === symbol) || candles[candles.length - 1];
-            const timestamp = new Date(candle.time || candle.timestamp).toLocaleTimeString();
+            const timestamp = new Date(candle.time || candle.timestamp);
 
             if (chartType === 'candlestick') {
                 priceChart.data.labels.push(timestamp);
@@ -615,73 +719,242 @@
                 priceChart.data.labels.push(timestamp);
                 priceChart.data.datasets[0].data.push(candle.close);
             }
-            priceChart.data.datasets[1].data.push(indicators.rsi);
-            priceChart.data.datasets[2].data.push(indicators.bollingerBands.upper);
-            priceChart.data.datasets[3].data.push(indicators.bollingerBands.middle);
-            priceChart.data.datasets[4].data.push(indicators.bollingerBands.lower);
-            priceChart.data.datasets[5].data.push(indicators.movingAverage);
+            priceChart.data.datasets[1].data.push(indicators.rsi || 0);
+            priceChart.data.datasets[2].data.push(indicators.bollingerBands?.upper || 0);
+            priceChart.data.datasets[3].data.push(indicators.bollingerBands?.middle || 0);
+            priceChart.data.datasets[4].data.push(indicators.bollingerBands?.lower || 0);
+            priceChart.data.datasets[5].data.push(indicators.movingAverage || 0);
+            priceChart.data.datasets[6].data.push(indicators.macd?.line || 0);
+            priceChart.data.datasets[7].data.push(indicators.macd?.signal || 0);
+            priceChart.data.datasets[8].data.push(indicators.macd?.histogram || 0);
 
-            if (priceChart.data.labels.length > 50) {
+            // Update candle stats
+            document.getElementById('candle-open').textContent = candle.open?.toFixed(5) || '-';
+            document.getElementById('candle-high').textContent = candle.high?.toFixed(5) || '-';
+            document.getElementById('candle-low').textContent = candle.low?.toFixed(5) || '-';
+            document.getElementById('candle-close').textContent = candle.close?.toFixed(5) || '-';
+            document.getElementById('current-price-display').textContent = candle.close?.toFixed(5) || '0.00000';
+            document.getElementById('volatility-value').textContent = indicators.volatility ? `${indicators.volatility.toFixed(2)}%` : '0.00%';
+            document.getElementById('market-trend').textContent = window.derivBot.detectMarketTrend() || 'Sideways';
+            document.getElementById('candle-pattern').textContent = window.derivBot.candleManager.detectPattern(symbol) || 'None';
+
+            if (priceChart.data.labels.length > 100) {
                 priceChart.data.labels.shift();
                 priceChart.data.datasets.forEach(dataset => dataset.data.shift());
             }
             priceChart.update();
-        }
+        };
 
         // Update ML feature chart
-        function updateMLFeatureChart(features) {
+        window.updateMLFeatureChart = function(features) {
             mlFeatureChart.data.datasets[0].data = [features.rsi || 0, features.macd || 0, features.volatility || 0];
             const topFeature = Object.keys(features).reduce((a, b) => features[a] > features[b] ? a : b, 'rsi');
             document.getElementById('ml-top-feature').textContent = topFeature.toUpperCase();
             document.getElementById('ml-confidence').textContent = `${(Math.max(...Object.values(features)) * 100).toFixed(1)}%`;
             mlFeatureChart.update();
-        }
+        };
 
         // Notify contract purchase
-        function notifyContractPurchase(details) {
+        window.notifyContractPurchase = function(details) {
             Toastify({
-                text: `Trade: ${details.contractType} on ${details.symbol} for $${details.buyPrice} (ID: ${details.contractId})`,
+                text: `Trade: ${details.contractType} on ${details.symbol} for $${details.buyPrice.toFixed(2)} (ID: ${details.contractId})`,
                 duration: 5000,
-                gravity: "top",
-                position: "right",
-                backgroundColor: "var(--success-color)",
-                className: "toast-notification",
-                ariaLive: "polite"
+                gravity: 'top',
+                position: 'right',
+                backgroundColor: 'var(--success-color)',
+                className: 'toast-notification',
+                ariaLive: 'polite'
             }).showToast();
-        }
+            document.getElementById('last-trade').textContent = `${details.contractType} $${details.buyPrice.toFixed(2)}`;
+        };
 
-        // Data management with pagination
+        // Update UI with bot data
+        window.updateUI = function(data) {
+            document.getElementById('balance').textContent = `$${parseFloat(data.balance).toFixed(2)}`;
+            document.getElementById('balance-stats').textContent = `$${parseFloat(data.balance).toFixed(2)}`;
+            document.getElementById('total-pnl').textContent = `$${parseFloat(data.totalPnL).toFixed(2)}`;
+            document.getElementById('total-pnl-stats').textContent = `$${parseFloat(data.totalPnL).toFixed(2)}`;
+            document.getElementById('total-trades').textContent = data.totalTrades || 0;
+            document.getElementById('wins').textContent = data.wins || 0;
+            document.getElementById('losses').textContent = data.losses || 0;
+            document.getElementById('win-rate').textContent = data.totalTrades ? `${((data.wins / data.totalTrades) * 100).toFixed(1)}%` : '0%';
+            document.getElementById('win-rate-stats').textContent = data.totalTrades ? `${((data.wins / data.totalTrades) * 100).toFixed(1)}%` : '0%';
+            document.getElementById('current-streak').textContent = data.currentStreak || 0;
+            document.getElementById('rsi-value').textContent = data.indicators?.rsi?.toFixed(2) || '0.00';
+            document.getElementById('ma-value').textContent = data.indicators?.movingAverage?.toFixed(5) || '0.00000';
+            document.getElementById('bollinger-upper').textContent = data.indicators?.bollingerBands?.upper?.toFixed(5) || '0.00000';
+            document.getElementById('bollinger-middle').textContent = data.indicators?.bollingerBands?.middle?.toFixed(5) || '0.00000';
+            document.getElementById('bollinger-lower').textContent = data.indicators?.bollingerBands?.lower?.toFixed(5) || '0.00000';
+            document.getElementById('macd-line').textContent = data.indicators?.macd?.line?.toFixed(5) || '0.00000';
+            document.getElementById('macd-signal').textContent = data.indicators?.macd?.signal?.toFixed(5) || '0.00000';
+            document.getElementById('macd-histogram').textContent = data.indicators?.macd?.histogram?.toFixed(5) || '0.00000';
+            document.getElementById('stochastic-k').textContent = data.indicators?.stochastic?.k?.toFixed(2) || '0.00';
+            document.getElementById('stochastic-d').textContent = data.indicators?.stochastic?.d?.toFixed(2) || '0.00';
+            document.getElementById('adx-value').textContent = data.indicators?.adx?.toFixed(2) || '0.00';
+            document.getElementById('obv-value').textContent = data.indicators?.obv?.toFixed(2) || '0.00';
+            document.getElementById('sentiment-value').textContent = data.indicators?.sentiment?.toFixed(2) || '0.00';
+            document.getElementById('news-event').textContent = window.derivBot.checkMarketConditions() ? 'Active' : 'None';
+            document.getElementById('volatility-spike').textContent = window.derivBot.detectVolatilitySpike() ? 'Yes' : 'No';
+            document.getElementById('volatility-trend').textContent = data.indicators?.volatility > 2 ? 'High' : 'Stable';
+
+            // Update strategy stats
+            const strategyBody = document.getElementById('strategy-stats-body');
+            strategyBody.innerHTML = '';
+            Object.entries(data.strategyStats || {}).forEach(([strategy, stats]) => {
+                const total = stats.wins + stats.losses;
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${strategy}</td>
+                    <td>${stats.wins}</td>
+                    <td>${stats.losses}</td>
+                    <td>${total ? ((stats.wins / total) * 100).toFixed(1) : 0}%</td>
+                    <td>$${stats.totalPnL.toFixed(2)}</td>
+                `;
+                strategyBody.appendChild(row);
+            });
+
+            // Update correlations
+            const correlationBody = document.getElementById('correlation-body');
+            correlationBody.innerHTML = '';
+            Object.entries(data.correlations || {}).forEach(([pair, value]) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `<td>${pair}</td><td>${value.toFixed(3)}</td>`;
+                correlationBody.appendChild(row);
+            });
+
+            document.getElementById('start-btn').disabled = !data.isConnected || data.isTrading;
+            document.getElementById('stop-btn').disabled = !data.isTrading;
+        };
+
+        // Update backtest results
+        window.updateBacktestResults = function(results) {
+            const stats = results.stats || { wins: 0, losses: 0, totalPnL: 0 };
+            Toastify({
+                text: `Backtest: ${results.totalTrades} trades, ${results.wins} wins, ${results.winRate}% win rate, P&L: $${results.totalPnL}`,
+                duration: 5000,
+                gravity: 'top',
+                position: 'right',
+                backgroundColor: 'var(--success-color)',
+                ariaLive: 'polite'
+            }).showToast();
+            window.updateUI({
+                totalTrades: results.totalTrades,
+                wins: results.wins,
+                losses: results.losses,
+                totalPnL: results.totalPnL,
+                strategyStats: { backtest: stats }
+            });
+        };
+
+        // Update connection status
+        window.updateConnectionStatus = function(status, isConnected) {
+            document.getElementById('connection-status').textContent = status;
+            document.getElementById('status-indicator').className = `status-indicator ${isConnected ? 'connected' : 'disconnected'}`;
+            document.getElementById('start-btn').disabled = !isConnected;
+        };
+
+        // Update log display
+        window.updateLog = function(message) {
+            const logContent = document.getElementById('log-content');
+            const [timestamp, type, ...msg] = message.split(' ');
+            const logType = type.slice(1, -1).toLowerCase();
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${logType}`;
+            logEntry.textContent = message;
+            logContent.appendChild(logEntry);
+            logContent.scrollTop = logContent.scrollHeight;
+
+            // Apply current filter
+            const filter = document.getElementById('log-filter').value;
+            logEntry.style.display = filter === 'all' || logEntry.classList.contains(filter) ? 'block' : 'none';
+
+            // Apply current search
+            const search = document.getElementById('log-search').value.toLowerCase();
+            if (search && !message.toLowerCase().includes(search)) {
+                logEntry.style.display = 'none';
+            }
+
+            // Limit log entries
+            if (logContent.children.length > 1000) {
+                logContent.removeChild(logContent.firstChild);
+            }
+        };
+
+        // Clear log display
+        window.clearLogDisplay = function() {
+            document.getElementById('log-content').innerHTML = '';
+        };
+
+        // Data management with pagination, filtering, and sorting
         let currentPage = 1;
         const itemsPerPage = 10;
-        function displayDataTable(data, page = 1) {
+        window.displayDataTable = function(data, page = 1) {
             const dataType = document.getElementById('data-type').value;
+            const filter = document.getElementById('data-filter').value.toLowerCase();
+            const [sortKey, sortOrder] = document.getElementById('data-sort').value.split('|');
             const tableHead = document.getElementById('data-table-head');
             const tableBody = document.getElementById('data-table-body');
             tableHead.innerHTML = '';
             tableBody.innerHTML = '';
 
-            if (!data || !data.length) {
+            if (!data?.length) {
                 tableBody.innerHTML = '<tr><td colspan="100">No data available</td></tr>';
+                document.getElementById('data-page-info').textContent = 'Page 1 of 1';
+                document.getElementById('data-prev-page').disabled = true;
+                document.getElementById('data-next-page').disabled = true;
                 return;
             }
+
+            // Filter data
+            const filteredData = data.filter(item => {
+                return Object.values(item).some(val => 
+                    val && typeof val === 'object' ? 
+                    Object.values(val).some(subVal => subVal?.toString().toLowerCase().includes(filter)) : 
+                    val?.toString().toLowerCase().includes(filter)
+                );
+            });
+
+            // Sort data
+            filteredData.sort((a, b) => {
+                let valA = sortKey.includes('.') ? sortKey.split('.').reduce((obj, k) => obj?.[k], a) : a[sortKey];
+                let valB = sortKey.includes('.') ? sortKey.split('.').reduce((obj, k) => obj?.[k], b) : b[sortKey];
+                valA = valA || 0;
+                valB = valB || 0;
+                if (sortKey === 'timestamp') {
+                    valA = new Date(valA).getTime();
+                    valB = new Date(valB).getTime();
+                }
+                return sortOrder === 'asc' ? valA - valB : valB - valA;
+            });
 
             // Define headers based on data type
             const headers = {
                 ticks: ['Symbol', 'Price', 'Time', 'Volume'],
                 candles: ['Symbol', 'Open', 'High', 'Low', 'Close', 'Volume', 'Time'],
-                trades: ['ID', 'Symbol', 'Result', 'P&L', 'RSI', 'MACD', 'Volatility', 'Timestamp']
+                trades: ['ID', 'Symbol', 'Result', 'P&L', 'RSI', 'MACD', 'Volatility', 'Timestamp'],
+                backtest_trades: ['ID', 'Symbol', 'Result', 'P&L', 'RSI', 'MACD', 'Volatility', 'Timestamp']
             };
             const rowKeys = {
-                ticks: ['symbol', 'price', 'time', 'volume'],
-                candles: ['symbol', 'open', 'high', 'low', 'close', 'volume', 'time'],
-                trades: ['id', 'symbol', 'result', 'pnl', 'indicators.rsi', 'indicators.macd', 'indicators.volatility', 'timestamp']
+                ticks: ['symbol', 'price', 'timestamp', 'volume'],
+                candles: ['symbol', 'open', 'high', 'low', 'close', 'volume', 'timestamp'],
+                trades: ['id', 'symbol', 'result', 'pnl', 'indicators.rsi', 'indicators.macd', 'indicators.volatility', 'timestamp'],
+                backtest_trades: ['id', 'symbol', 'result', 'pnl', 'indicators.rsi', 'indicators.macd', 'indicators.volatility', 'timestamp']
             };
 
-            // Create table headers
+            // Create table headers with sorting
             const headerRow = document.createElement('tr');
-            headers[dataType].forEach(header => {
+            headers[dataType].forEach((header, index) => {
                 const th = document.createElement('th');
                 th.textContent = header;
+                th.setAttribute('scope', 'col');
+                th.style.cursor = 'pointer';
+                th.addEventListener('click', () => {
+                    const newSortKey = rowKeys[dataType][index];
+                    const currentSort = document.getElementById('data-sort').value;
+                    const newSortOrder = currentSort.includes(newSortKey) && currentSort.endsWith('asc') ? 'desc' : 'asc';
+                    document.getElementById('data-sort').value = `${newSortKey}|${newSortOrder}`;
+                    window.displayDataTable(window.derivBot.loadData(dataType), 1);
+                });
                 headerRow.appendChild(th);
             });
             tableHead.appendChild(headerRow);
@@ -689,7 +962,7 @@
             // Paginate data
             const start = (page - 1) * itemsPerPage;
             const end = start + itemsPerPage;
-            const paginatedData = data.slice(start, end);
+            const paginatedData = filteredData.slice(start, end);
 
             // Create table rows
             paginatedData.forEach(item => {
@@ -704,36 +977,37 @@
             });
 
             // Update pagination controls
-            const pageCount = Math.ceil(data.length / itemsPerPage);
-            document.getElementById('data-page-info').textContent = `Page ${page} of ${pageCount}`;
+            const pageCount = Math.ceil(filteredData.length / itemsPerPage);
+            document.getElementById('data-page-info').textContent = `Page ${page} of ${pageCount || 1}`;
             document.getElementById('data-prev-page').disabled = page === 1;
             document.getElementById('data-next-page').disabled = page === pageCount;
-        }
+        };
 
+        // Data management event listeners
         document.getElementById('view-data-btn').addEventListener('click', async () => {
             const dataType = document.getElementById('data-type').value;
             document.getElementById('loading-spinner').style.display = 'block';
             try {
                 const data = window.derivBot.loadData(dataType);
                 currentPage = 1;
-                displayDataTable(data, currentPage);
+                window.displayDataTable(data, currentPage);
                 updateProgressBar(100);
                 Toastify({
                     text: `Loaded ${data.length} ${dataType} records`,
                     duration: 3000,
-                    gravity: "top",
-                    position: "right",
-                    backgroundColor: "var(--success-color)",
-                    ariaLive: "polite"
+                    gravity: 'top',
+                    position: 'right',
+                    backgroundColor: 'var(--success-color)',
+                    ariaLive: 'polite'
                 }).showToast();
             } catch (error) {
                 Toastify({
                     text: `Error loading ${dataType}: ${error.message}`,
                     duration: 5000,
-                    gravity: "top",
-                    position: "right",
-                    backgroundColor: "var(--error-color)",
-                    ariaLive: "assertive"
+                    gravity: 'top',
+                    position: 'right',
+                    backgroundColor: 'var(--error-color)',
+                    ariaLive: 'assertive'
                 }).showToast();
             } finally {
                 document.getElementById('loading-spinner').style.display = 'none';
@@ -744,24 +1018,24 @@
             const dataType = document.getElementById('data-type').value;
             try {
                 window.derivBot.saveData(dataType, []);
-                displayDataTable([]);
+                window.displayDataTable([]);
                 updateProgressBar(0);
                 Toastify({
                     text: `${dataType} data cleared`,
                     duration: 3000,
-                    gravity: "top",
-                    position: "right",
-                    backgroundColor: "var(--success-color)",
-                    ariaLive: "polite"
+                    gravity: 'top',
+                    position: 'right',
+                    backgroundColor: 'var(--success-color)',
+                    ariaLive: 'polite'
                 }).showToast();
             } catch (error) {
                 Toastify({
                     text: `Error clearing ${dataType}: ${error.message}`,
                     duration: 5000,
-                    gravity: "top",
-                    position: "right",
-                    backgroundColor: "var(--error-color)",
-                    ariaLive: "assertive"
+                    gravity: 'top',
+                    position: 'right',
+                    backgroundColor: 'var(--error-color)',
+                    ariaLive: 'assertive'
                 }).showToast();
             }
         });
@@ -780,19 +1054,19 @@
                 Toastify({
                     text: `${dataType} data exported`,
                     duration: 3000,
-                    gravity: "top",
-                    position: "right",
-                    backgroundColor: "var(--success-color)",
-                    ariaLive: "polite"
+                    gravity: 'top',
+                    position: 'right',
+                    backgroundColor: 'var(--success-color)',
+                    ariaLive: 'polite'
                 }).showToast();
             } catch (error) {
                 Toastify({
                     text: `Error exporting ${dataType}: ${error.message}`,
                     duration: 5000,
-                    gravity: "top",
-                    position: "right",
-                    backgroundColor: "var(--error-color)",
-                    ariaLive: "assertive"
+                    gravity: 'top',
+                    position: 'right',
+                    backgroundColor: 'var(--error-color)',
+                    ariaLive: 'assertive'
                 }).showToast();
             }
         });
@@ -802,7 +1076,7 @@
                 currentPage--;
                 const dataType = document.getElementById('data-type').value;
                 const data = window.derivBot.loadData(dataType);
-                displayDataTable(data, currentPage);
+                window.displayDataTable(data, currentPage);
             }
         });
 
@@ -812,8 +1086,22 @@
             const pageCount = Math.ceil(data.length / itemsPerPage);
             if (currentPage < pageCount) {
                 currentPage++;
-                displayDataTable(data, currentPage);
+                window.displayDataTable(data, currentPage);
             }
+        });
+
+        document.getElementById('data-filter').addEventListener('input', () => {
+            const dataType = document.getElementById('data-type').value;
+            const data = window.derivBot.loadData(dataType);
+            currentPage = 1;
+            window.displayDataTable(data, currentPage);
+        });
+
+        document.getElementById('data-sort').addEventListener('change', () => {
+            const dataType = document.getElementById('data-type').value;
+            const data = window.derivBot.loadData(dataType);
+            currentPage = 1;
+            window.displayDataTable(data, currentPage);
         });
 
         // Progress bar update
@@ -824,14 +1112,20 @@
         }
 
         // Chart indicator toggles
-        ['show-rsi', 'show-bollinger', 'show-ma'].forEach(id => {
+        ['show-rsi', 'show-bollinger', 'show-ma', 'show-macd'].forEach(id => {
             document.getElementById(id).addEventListener('change', (e) => {
-                const indexMap = { 'show-rsi': 1, 'show-bollinger': [2, 3, 4], 'show-ma': 5 };
-                const indices = Array.isArray(indexMap[id]) ? indexMap[id] : [indexMap[id]];
+                const indexMap = { 
+                    'show-rsi': [1], 
+                    'show-bollinger': [2, 3, 4], 
+                    'show-ma': [5], 
+                    'show-macd': [6, 7, 8] 
+                };
+                const indices = indexMap[id];
                 indices.forEach(index => {
                     priceChart.data.datasets[index].hidden = !e.target.checked;
                 });
                 priceChart.options.scales.rsi.display = document.getElementById('show-rsi').checked;
+                priceChart.options.scales.macd.display = document.getElementById('show-macd').checked;
                 priceChart.update();
                 window.derivBot.log(`Toggled ${id} on chart`, 'info');
             });
@@ -846,10 +1140,10 @@
             Toastify({
                 text: 'Chart reset successfully',
                 duration: 3000,
-                gravity: "top",
-                position: "right",
-                backgroundColor: "var(--success-color)",
-                ariaLive: "polite"
+                gravity: 'top',
+                position: 'right',
+                backgroundColor: 'var(--success-color)',
+                ariaLive: 'polite'
             }).showToast();
         });
 
@@ -861,13 +1155,15 @@
                 label: 'Price',
                 data: [],
                 borderColor: 'var(--chart-color)',
-                backgroundColor: (ctx) => ctx.raw && ctx.raw.y && ctx.raw.y[3] >= ctx.raw.y[0] ? 'rgba(40, 167, 69, 0.5)' : 'rgba(220, 53, 69, 0.5)',
-                tension: chartType === 'line' ? 0.1 : 0
+                backgroundColor: (ctx) => ctx.raw?.y && ctx.raw.y[3] >= ctx.raw.y[0] ? 'rgba(40, 167, 69, 0.5)' : 'rgba(220, 53, 69, 0.5)',
+                tension: chartType === 'line' ? 0.1 : 0,
+                fill: false,
+                parsing: chartType === 'candlestick' ? { xAxisKey: 'x', yAxisKey: 'y' } : false
             };
             priceChart.update();
             window.derivBot.log(`Chart type changed to ${chartType}`, 'info');
             const candles = window.derivBot.candleManager.getCandles(window.derivBot.config.symbol);
-            candles.forEach(candle => updatePriceChart([candle], window.derivBot.config.symbol));
+            candles.forEach(candle => window.updatePriceChart([candle], window.derivBot.config.symbol));
         });
 
         // Theme toggle
@@ -878,6 +1174,7 @@
             priceChart.options.scales.x.title.color = isDark ? '#fff' : '#333';
             priceChart.options.scales.price.title.color = isDark ? '#fff' : '#333';
             priceChart.options.scales.rsi.title.color = isDark ? '#fff' : '#333';
+            priceChart.options.scales.macd.title.color = isDark ? '#fff' : '#333';
             priceChart.data.datasets[0].borderColor = isDark ? '#f39c12' : '#007bff';
             priceChart.update();
             mlFeatureChart.options.scales.x.title.color = isDark ? '#fff' : '#333';
@@ -886,11 +1183,39 @@
             Toastify({
                 text: `Switched to ${isDark ? 'dark' : 'light'} mode`,
                 duration: 3000,
-                gravity: "top",
-                position: "right",
-                backgroundColor: "var(--success-color)",
-                ariaLive: "polite"
+                gravity: 'top',
+                position: 'right',
+                backgroundColor: 'var(--success-color)',
+                ariaLive: 'polite'
             }).showToast();
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+        });
+
+        // Load saved theme
+        if (localStorage.getItem('theme') === 'dark') {
+            document.body.classList.add('dark-mode');
+            document.getElementById('theme-toggle').innerHTML = '<i class="fas fa-sun"></i>';
+        }
+
+        // Fullscreen toggle
+        document.getElementById('fullscreen-btn').addEventListener('click', () => {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    window.derivBot.log(`Fullscreen error: ${err.message}`, 'error');
+                });
+                document.getElementById('fullscreen-btn').innerHTML = '<i class="fas fa-compress"></i>';
+            } else {
+                document.exitFullscreen();
+                document.getElementById('fullscreen-btn').innerHTML = '<i class="fas fa-expand"></i>';
+            }
+        });
+
+        // Toggle API token visibility
+        document.getElementById('toggle-token-visibility').addEventListener('click', () => {
+            const tokenInput = document.getElementById('api-token');
+            const isPassword = tokenInput.type === 'password';
+            tokenInput.type = isPassword ? 'text' : 'password';
+            document.getElementById('toggle-token-visibility').innerHTML = isPassword ? '<i class="fas fa-eye-slash"></i>' : '<i class="fas fa-eye"></i>';
         });
 
         // Log filtering
@@ -922,10 +1247,10 @@
             Toastify({
                 text: 'Logs exported successfully',
                 duration: 3000,
-                gravity: "top",
-                position: "right",
-                backgroundColor: "var(--success-color)",
-                ariaLive: "polite"
+                gravity: 'top',
+                position: 'right',
+                backgroundColor: 'var(--success-color)',
+                ariaLive: 'polite'
             }).showToast();
         });
 
@@ -960,7 +1285,7 @@
                 const element = document.getElementById(id);
                 if (element.tagName === 'SELECT' && id === 'symbols') {
                     Array.from(element.options).forEach(opt => opt.selected = value.includes(opt.value));
-                } else if (element.tagName === 'INPUT' && element.type === 'checkbox') {
+                } else if (element.type === 'checkbox') {
                     element.checked = value;
                 } else {
                     element.value = value;
@@ -972,20 +1297,35 @@
             Toastify({
                 text: 'Configuration reset',
                 duration: 3000,
-                gravity: "top",
-                position: "right",
-                backgroundColor: "var(--success-color)",
-                ariaLive: "polite"
+                gravity: 'top',
+                position: 'right',
+                backgroundColor: 'var(--success-color)',
+                ariaLive: 'polite'
             }).showToast();
         });
 
         // Help modal
         document.getElementById('help-btn').addEventListener('click', () => {
             document.getElementById('help-modal').style.display = 'block';
+            document.getElementById('close-help-modal').focus();
         });
 
         document.getElementById('close-help-modal').addEventListener('click', () => {
             document.getElementById('help-modal').style.display = 'none';
+            document.getElementById('help-btn').focus();
+        });
+
+        // Accessibility: Keyboard navigation
+        document.querySelectorAll('button, input, select, textarea').forEach(element => {
+            element.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    if (element.tagName === 'BUTTON') {
+                        element.click();
+                    } else {
+                        element.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                }
+            });
         });
 
         // Custom tooltips
@@ -1004,14 +1344,17 @@
             });
         });
 
-        // Accessibility: Keyboard navigation
-        document.querySelectorAll('button, input, select, textarea').forEach(element => {
-            element.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') {
-                    e.target.click();
-                    e.target.dispatchEvent(new Event('change'));
-                }
-            });
+        // Initialize bot
+        window.addEventListener('load', () => {
+            window.derivBot.log('UI initialized', 'info');
+            Toastify({
+                text: 'sbl STINGRAY V4 Trading Bot initialized',
+                duration: 3000,
+                gravity: 'top',
+                position: 'right',
+                backgroundColor: 'var(--success-color)',
+                ariaLive: 'polite'
+            }).showToast();
         });
     </script>
 </body>

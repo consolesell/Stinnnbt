@@ -1,4 +1,3 @@
-
 /* Theme variables for light and dark modes */
 :root {
     --primary-color: #1e88e5; /* Vibrant blue for buttons and accents */
@@ -797,4 +796,3 @@ button:focus, input:focus, select:focus, textarea:focus {
         height: 80px;
     }
 }
-

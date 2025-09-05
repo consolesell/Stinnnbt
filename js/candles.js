@@ -35,7 +35,7 @@ export class CandleManager {
     }
     if (!this.candles.has(symbol)) {
       this.candles.set(symbol, []);
-      this.log(`Initialized candles for ${symbol}`, 'debug');
+      this.log(`Initialized candles for ${symbol}`, 'info');
     }
   }
 
@@ -51,11 +51,8 @@ export class CandleManager {
         return;
       }
 
+      this.initializeSymbol(symbol); // Ensure symbol is initialized
       let symbolCandles = this.candles.get(symbol);
-      if (!symbolCandles) {
-        this.initializeSymbol(symbol);
-        symbolCandles = this.candles.get(symbol);
-      }
 
       const timeBucket = Math.floor(tick.time.getTime() / (this.timeframe * 1000)) * (this.timeframe * 1000);
       const lastCandle = symbolCandles[symbolCandles.length - 1];
@@ -102,7 +99,16 @@ export class CandleManager {
    * @returns {Array<Object>} Array of candle objects
    */
   getCandles(symbol) {
-    return this.candles.get(symbol) || [];
+    if (!symbol || typeof symbol !== 'string') {
+      this.log(`Invalid symbol for getCandles: ${symbol}`, 'error');
+      return [];
+    }
+    const candles = this.candles.get(symbol);
+    if (!candles) {
+      this.log(`No candles initialized for ${symbol}`, 'warning');
+      return [];
+    }
+    return candles;
   }
 
   /**

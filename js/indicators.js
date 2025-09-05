@@ -27,8 +27,12 @@ export class IndicatorManager {
    */
   updateIndicators(candles) {
     try {
-      if (!Array.isArray(candles) || candles.length < 14) {
-        this.log('Insufficient candle data for indicators', 'warning');
+      if (!Array.isArray(candles)) {
+        this.log('Candles parameter is undefined or not an array', 'error');
+        return;
+      }
+      if (candles.length < 14) {
+        this.log(`Insufficient candle data: ${candles.length} candles provided, need at least 14`, 'warning');
         return;
       }
 
@@ -55,7 +59,7 @@ export class IndicatorManager {
    * @returns {number} RSI value
    */
   calculateRSI(closes) {
-    if (closes.length < 14) return 0;
+    if (!Array.isArray(closes) || closes.length < 14) return 0;
     const period = 14;
     let gains = 0;
     let losses = 0;
@@ -79,7 +83,7 @@ export class IndicatorManager {
    * @returns {number} MA value
    */
   calculateMA(closes, period = 20) {
-    if (closes.length < period) return 0;
+    if (!Array.isArray(closes) || closes.length < period) return 0;
     const slice = closes.slice(-period);
     return slice.reduce((sum, price) => sum + price, 0) / period;
   }
@@ -90,7 +94,7 @@ export class IndicatorManager {
    * @returns {number} Volatility percentage
    */
   calculateVolatility(closes) {
-    if (closes.length < 20) return 0;
+    if (!Array.isArray(closes) || closes.length < 20) return 0;
     const slice = closes.slice(-20);
     const mean = slice.reduce((sum, price) => sum + price, 0) / slice.length;
     const variance = slice.reduce((sum, price) => sum + ((price - mean) ** 2), 0) / slice.length;
@@ -103,7 +107,7 @@ export class IndicatorManager {
    * @returns {Object} { upper, middle, lower }
    */
   calculateBollingerBands(closes) {
-    if (closes.length < 20) return { upper: 0, middle: 0, lower: 0 };
+    if (!Array.isArray(closes) || closes.length < 20) return { upper: 0, middle: 0, lower: 0 };
     const period = 20;
     const slice = closes.slice(-period);
     const middle = this.calculateMA(closes, period);
@@ -121,11 +125,11 @@ export class IndicatorManager {
    * @returns {Object} { line, signal, histogram }
    */
   calculateMACD(closes) {
-    if (closes.length < 26) return { line: 0, signal: 0, histogram: 0 };
+    if (!Array.isArray(closes) || closes.length < 26) return { line: 0, signal: 0, histogram: 0 };
     const ema12 = this.calculateEMA(closes, 12);
     const ema26 = this.calculateEMA(closes, 26);
     const line = ema12 - ema26;
-    const signal = this.calculateEMA(candles.slice(-9).map(() => line), 9);
+    const signal = this.calculateEMA(closes.slice(-9).map(() => line), 9);
     return { line, signal, histogram: line - signal };
   }
 
@@ -136,7 +140,7 @@ export class IndicatorManager {
    * @returns {number} EMA value
    */
   calculateEMA(prices, period) {
-    if (prices.length < period) return 0;
+    if (!Array.isArray(prices) || prices.length < period) return 0;
     const k = 2 / (period + 1);
     let ema = prices[prices.length - period];
     for (let i = prices.length - period + 1; i < prices.length; i++) {
@@ -151,7 +155,7 @@ export class IndicatorManager {
    * @returns {Object} { k, d }
    */
   calculateStochastic(candles) {
-    if (candles.length < 14) return { k: 0, d: 0 };
+    if (!Array.isArray(candles) || candles.length < 14) return { k: 0, d: 0 };
     const period = 14;
     const slice = candles.slice(-period);
     const highestHigh = Math.max(...slice.map((c) => c.high));
@@ -168,7 +172,7 @@ export class IndicatorManager {
    * @returns {number} ADX value
    */
   calculateADX(candles) {
-    if (candles.length < 14) return 0;
+    if (!Array.isArray(candles) || candles.length < 14) return 0;
     // Simplified ADX calculation (placeholder)
     return 20; // Replace with actual ADX logic if needed
   }
@@ -179,7 +183,7 @@ export class IndicatorManager {
    * @returns {number} OBV value
    */
   calculateOBV(candles) {
-    if (candles.length < 2) return 0;
+    if (!Array.isArray(candles) || candles.length < 2) return 0;
     let obv = 0;
     for (let i = 1; i < candles.length; i++) {
       if (candles[i].close > candles[i - 1].close) {
@@ -197,7 +201,7 @@ export class IndicatorManager {
    * @returns {number} Sentiment score
    */
   calculateSentiment(closes) {
-    if (closes.length < 20) return 0;
+    if (!Array.isArray(closes) || closes.length < 20) return 0;
     const recent = closes.slice(-10);
     const older = closes.slice(-20, -10);
     const recentAvg = recent.reduce((sum, p) => sum + p, 0) / recent.length;
@@ -211,15 +215,22 @@ export class IndicatorManager {
    */
   updateCorrelations(candlesMap) {
     try {
+      if (!(candlesMap instanceof Map)) {
+        this.log('Invalid candlesMap: not a Map', 'error');
+        return;
+      }
       this.correlations.clear();
       const symbols = Array.from(candlesMap.keys());
       for (let i = 0; i < symbols.length; i++) {
         for (let j = i + 1; j < symbols.length; j++) {
           const symbol1 = symbols[i];
           const symbol2 = symbols[j];
-          const closes1 = candlesMap.get(symbol1).slice(-50).map((c) => c.close);
-          const closes2 = candlesMap.get(symbol2).slice(-50).map((c) => c.close);
-          if (closes1.length < 50 || closes2.length < 50) continue;
+          const closes1 = candlesMap.get(symbol1)?.slice(-50)?.map((c) => c.close) || [];
+          const closes2 = candlesMap.get(symbol2)?.slice(-50)?.map((c) => c.close) || [];
+          if (closes1.length < 50 || closes2.length < 50) {
+            this.log(`Insufficient data for correlation: ${symbol1}-${symbol2}`, 'warning');
+            continue;
+          }
           const correlation = this.calculateCorrelation(closes1, closes2);
           this.correlations.set(`${symbol1}-${symbol2}`, correlation);
         }
@@ -237,7 +248,7 @@ export class IndicatorManager {
    * @returns {number} Correlation coefficient
    */
   calculateCorrelation(series1, series2) {
-    if (series1.length !== series2.length) return 0;
+    if (!Array.isArray(series1) || !Array.isArray(series2) || series1.length !== series2.length) return 0;
     const n = series1.length;
     const mean1 = series1.reduce((sum, val) => sum + val, 0) / n;
     const mean2 = series2.reduce((sum, val) => sum + val, 0) / n;
@@ -253,7 +264,7 @@ export class IndicatorManager {
       std2 += diff2 ** 2;
     }
 
-    return cov / Math.sqrt(std1 * std2);
+    return cov / Math.sqrt(std1 * std2) || 0;
   }
 
   /**

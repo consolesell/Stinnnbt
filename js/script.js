@@ -91,10 +91,27 @@ class AdvancedDerivBot {
    * Initialize bot components and event listeners
    */
   init() {
+    // Initialize all configured symbols
+    this.config.symbols.forEach((symbol) => {
+      this.candleManager.initializeSymbol(symbol);
+      this.log(`Initialized symbol: ${symbol}`, 'info');
+    });
     this.setupEventListeners();
     this.loadHistoricalData();
     this.updateUI();
     this.log('Bot initialized successfully', 'info');
+  }
+
+  /**
+   * Log messages to console and UI
+   * @param {string} message - Message to log
+   * @param {string} type - Log type (info, warning, error, success, debug)
+   */
+  log(message, type = 'info') {
+    if (this.debugMode || type !== 'debug') {
+      console.log(`[${type.toUpperCase()}] ${message}`);
+      window.updateLog?.(`${new Date().toISOString()} [${type.toUpperCase()}] ${message}`);
+    }
   }
 
   /**
@@ -277,6 +294,12 @@ class AdvancedDerivBot {
       this.currentStake = this.initialStake;
       this.candleManager.setTimeframe(this.config.candleTimeframe);
 
+      // Re-initialize symbols after config update
+      this.config.symbols.forEach((symbol) => {
+        this.candleManager.initializeSymbol(symbol);
+        this.log(`Re-initialized symbol: ${symbol}`, 'info');
+      });
+
       this.log(`Configuration updated: ${this.config.strategy} strategy on ${this.config.symbols.join(', ')}`, 'info');
     } catch (error) {
       this.log(`Configuration error: ${error.message}`, 'error');
@@ -398,6 +421,43 @@ class AdvancedDerivBot {
   }
 
   /**
+   * Generate unique request ID
+   * @returns {number} Request ID
+   */
+  generateReqId() {
+    return this.requestIdCounter++;
+  }
+
+  /**
+   * Send WebSocket message
+   * @param {Object} message - Message to send
+   */
+  sendMessage(message) {
+    if (this.isConnected && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify(message));
+      this.log(`Sent message: ${message.msg_type || Object.keys(message)[0]} (req_id: ${message.req_id || 'none'})`, 'debug');
+    } else {
+      this.log('Cannot send message: WebSocket not connected', 'error');
+      this.tradeQueue.push(message);
+    }
+  }
+
+  /**
+   * Process queued WebSocket messages
+   */
+  processQueue() {
+    if (this.isProcessingQueue || !this.isConnected || this.ws.readyState !== WebSocket.OPEN) return;
+    this.isProcessingQueue = true;
+
+    while (this.tradeQueue.length > 0) {
+      const message = this.tradeQueue.shift();
+      this.sendMessage(message);
+    }
+
+    this.isProcessingQueue = false;
+  }
+
+  /**
    * Handle incoming WebSocket messages
    * @param {Object} data - Message data from API
    */
@@ -455,6 +515,10 @@ class AdvancedDerivBot {
    */
   processTick(tick) {
     try {
+      if (!tick?.symbol) {
+        this.log('Invalid tick: missing symbol', 'error');
+        return;
+      }
       this.currentPrice = tick.quote;
       const tickData = {
         symbol: tick.symbol,
@@ -486,8 +550,11 @@ class AdvancedDerivBot {
         saveData('candles', candleData);
 
         this.indicatorManager.updateIndicators(candles);
-        this.indicatorManager.updateCorrelations(this.candleManager.candles);
+        const candleMap = new Map(this.config.symbols.map((s) => [s, this.candleManager.getCandles(s)]));
+        this.indicatorManager.updateCorrelations(candleMap);
         window.updatePriceChart?.(candles, tick.symbol);
+      } else {
+        this.log(`No candles available for ${tick.symbol}`, 'warning');
       }
 
       if (tick.symbol === this.config.symbol && this.isTrading && !this.activeContract && !this.isPaused) {
@@ -613,7 +680,10 @@ class AdvancedDerivBot {
   getTrendFollowSignal() {
     const indicators = this.indicatorManager.getIndicators();
     const candles = this.candleManager.getCandles(this.config.symbol);
-    if (candles.length < 10) return { shouldTrade: false };
+    if (candles.length < 10) {
+      this.log(`Insufficient candles for trend-follow: ${candles.length}`, 'warning');
+      return { shouldTrade: false };
+    }
 
     const shortMA = this.config.useMultiTimeframe ? this.indicatorManager.calculateMA(candles, 5) : indicators.movingAverage;
     return {
@@ -629,7 +699,10 @@ class AdvancedDerivBot {
   getMeanReversionSignal() {
     const indicators = this.indicatorManager.getIndicators();
     const candles = this.candleManager.getCandles(this.config.symbol);
-    if (candles.length < 20) return { shouldTrade: false };
+    if (candles.length < 20) {
+      this.log(`Insufficient candles for mean-reversion: ${candles.length}`, 'warning');
+      return { shouldTrade: false };
+    }
 
     const longMA = this.config.useMultiTimeframe ? this.indicatorManager.calculateMA(candles, 20) : indicators.movingAverage;
     const deviation = Math.abs(this.currentPrice - longMA) / longMA * 100;
@@ -649,7 +722,10 @@ class AdvancedDerivBot {
    */
   getRSISignal() {
     const indicators = this.indicatorManager.getIndicators();
-    if (indicators.rsi === 0) return { shouldTrade: false };
+    if (indicators.rsi === 0) {
+      this.log('RSI not calculated; skipping signal', 'warning');
+      return { shouldTrade: false };
+    }
 
     return {
       shouldTrade: (indicators.rsi > 70 || indicators.rsi < 30),
@@ -665,7 +741,10 @@ class AdvancedDerivBot {
   getGridSignal(symbol) {
     const indicators = this.indicatorManager.getIndicators();
     const candles = this.candleManager.getCandles(symbol);
-    if (candles.length < 20) return { shouldTrade: false };
+    if (candles.length < 20) {
+      this.log(`Insufficient candles for grid signal: ${candles.length}`, 'warning');
+      return { shouldTrade: false };
+    }
 
     const gridSize = indicators.volatility * 0.01;
     const middlePrice = indicators.bollingerBands.middle;
@@ -683,14 +762,20 @@ class AdvancedDerivBot {
    * @returns {Object} Trading signal
    */
   getArbitrageSignal() {
-    if (this.config.symbols.length < 2) return { shouldTrade: false };
+    if (this.config.symbols.length < 2) {
+      this.log('Arbitrage requires at least two symbols', 'warning');
+      return { shouldTrade: false };
+    }
 
     const symbol1 = this.config.symbols[0];
     const symbol2 = this.config.symbols[1];
     const candles1 = this.candleManager.getCandles(symbol1).slice(-50);
     const candles2 = this.candleManager.getCandles(symbol2).slice(-50);
 
-    if (candles1.length < 50 || candles2.length < 50) return { shouldTrade: false };
+    if (candles1.length < 50 || candles2.length < 50) {
+      this.log(`Insufficient candles for arbitrage: ${symbol1}=${candles1.length}, ${symbol2}=${candles2.length}`, 'warning');
+      return { shouldTrade: false };
+    }
 
     const price1 = candles1[candles1.length - 1].close;
     const price2 = candles2[candles2.length - 1].close;
@@ -748,7 +833,10 @@ class AdvancedDerivBot {
    * @returns {Object} Trading signal
    */
   getCustomSignal() {
-    if (!this.config.customStrategyRules.length) return { shouldTrade: false };
+    if (!this.config.customStrategyRules.length) {
+      this.log('No custom strategy rules defined', 'warning');
+      return { shouldTrade: false };
+    }
 
     const indicators = this.indicatorManager.getIndicators();
     const conditionsMet = this.config.customStrategyRules.every((rule) => {
@@ -817,6 +905,22 @@ class AdvancedDerivBot {
     this.currentStake = parseFloat(Math.min(this.currentStake, this.balance * 0.1, 100).toFixed(1));
     this.currentStake = parseFloat(Math.max(this.currentStake, 0.35).toFixed(1));
     this.log(`Adjusted stake: $${this.currentStake}`, 'debug');
+  }
+
+  /**
+   * Calculate optimal stake using Kelly Criterion
+   * @returns {number} Optimal stake
+   */
+  calculateOptimalStake() {
+    const winRate = this.wins / (this.wins + this.losses) || 0.5;
+    const avgWin = this.historicalData
+      .filter((trade) => trade.result === 'win')
+      .reduce((sum, trade) => sum + trade.pnl, 0) / (this.wins || 1);
+    const avgLoss = this.historicalData
+      .filter((trade) => trade.result === 'loss')
+      .reduce((sum, trade) => sum + trade.pnl, 0) / (this.losses || 1);
+    const kellyFraction = winRate - ((1 - winRate) / (avgWin / Math.abs(avgLoss) || 1));
+    return this.balance * Math.max(0, Math.min(kellyFraction, 0.1));
   }
 
   /**
@@ -1091,7 +1195,7 @@ class AdvancedDerivBot {
           trend: this.detectMarketTrend(),
           volatilitySpike: this.detectVolatilitySpike(),
           newsEvent: this.checkMarketConditions(),
-          candlePattern: this.candleManager.detectPattern(this.config.symbol),
+          candlePattern: this.candleManager.detectPattern(this.activeContract.symbol),
         },
         timestamp: new Date().toISOString(),
       };
@@ -1113,6 +1217,161 @@ class AdvancedDerivBot {
   }
 
   /**
+   * Update strategy performance statistics
+   * @param {string} strategy - Strategy name
+   * @param {string} result - Trade result (win/loss)
+   */
+  updateStrategyStats(strategy, result) {
+    if (!this.strategyStats[strategy]) {
+      this.strategyStats[strategy] = { wins: 0, losses: 0, totalPnL: 0 };
+    }
+    this.strategyStats[strategy][result === 'win' ? 'wins' : 'losses']++;
+    this.strategyStats[strategy].totalPnL += this.totalPnL;
+  }
+
+  /**
+   * Select best strategy based on performance
+   * @returns {string} Best strategy
+   */
+  selectBestStrategy() {
+    if (!this.config.useDynamicSwitching) return this.config.strategy;
+    let bestStrategy = this.config.strategy;
+    let bestWinRate = 0;
+
+    Object.entries(this.strategyStats).forEach(([strategy, stats]) => {
+      const total = stats.wins + stats.losses;
+      const winRate = total > 0 ? stats.wins / total : 0;
+      if (winRate > bestWinRate && total >= 10) {
+        bestWinRate = winRate;
+        bestStrategy = strategy;
+      }
+    });
+
+    return bestStrategy;
+  }
+
+  /**
+   * Detect market trend
+   * @returns {string} Trend direction (uptrend/downtrend/sideways)
+   */
+  detectMarketTrend() {
+    const candles = this.candleManager.getCandles(this.config.symbol);
+    if (candles.length < 20) return 'sideways';
+    const prices = candles.slice(-20).map((c) => c.close);
+    const maShort = this.indicatorManager.calculateMA(prices, 5);
+    const maLong = this.indicatorManager.calculateMA(prices, 20);
+    return maShort > maLong ? 'uptrend' : maShort < maLong ? 'downtrend' : 'sideways';
+  }
+
+  /**
+   * Detect volatility spike
+   * @returns {boolean} Whether a volatility spike is detected
+   */
+  detectVolatilitySpike() {
+    const indicators = this.indicatorManager.getIndicators();
+    return indicators.volatility > 3;
+  }
+
+  /**
+   * Check market conditions (e.g., news events)
+   * @returns {boolean} Whether adverse conditions exist
+   */
+  checkMarketConditions() {
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+
+    return this.newsEvents.some((event) => {
+      const eventStart = event.hour * 60 + event.minute;
+      const eventEnd = eventStart + event.duration;
+      const currentTime = currentHour * 60 + currentMinute;
+      return currentTime >= eventStart && currentTime <= eventEnd;
+    });
+  }
+
+  /**
+   * Start trading
+   */
+  startTrading() {
+    if (!this.isConnected) {
+      this.log('Cannot start trading: Not connected to WebSocket', 'error');
+      return;
+    }
+    this.isTrading = true;
+    this.isPaused = false;
+    this.log('Trading started', 'success');
+    this.updateUI();
+  }
+
+  /**
+   * Stop trading
+   */
+  stopTrading() {
+    this.isTrading = false;
+    this.isPaused = false;
+    this.tradeQueue = [];
+    this.log('Trading stopped', 'info');
+    this.updateUI();
+  }
+
+  /**
+   * Reset trading statistics
+   */
+  resetStats() {
+    this.totalTrades = 0;
+    this.wins = 0;
+    this.losses = 0;
+    this.currentStreak = 0;
+    this.totalPnL = 0;
+    this.currentStake = this.initialStake;
+    this.consecutiveLosses = 0;
+    this.lastTradeResult = null;
+    this.strategyStats = {};
+    this.historicalData = [];
+    this.log('Statistics reset', 'info');
+    this.updateUI();
+  }
+
+  /**
+   * Clear log display
+   */
+  clearLog() {
+    window.clearLogDisplay?.();
+    this.log('Log cleared', 'info');
+  }
+
+  /**
+   * Update UI elements
+   */
+  updateUI() {
+    window.updateUI?.({
+      balance: this.balance.toFixed(2),
+      totalTrades: this.totalTrades,
+      wins: this.wins,
+      losses: this.losses,
+      currentStreak: this.currentStreak,
+      totalPnL: this.totalPnL.toFixed(2),
+      currentStake: this.currentStake.toFixed(2),
+      isTrading: this.isTrading,
+      isConnected: this.isConnected,
+      indicators: this.indicatorManager.getIndicators(),
+      correlations: Object.fromEntries(this.indicatorManager.getCorrelations()),
+      strategyStats: this.strategyStats,
+    });
+  }
+
+  /**
+   * Update connection status in UI
+   * @param {string} status - Connection status
+   * @param {boolean} isConnected - Whether connected
+   */
+  updateConnectionStatus(status, isConnected) {
+    this.isConnected = isConnected;
+    window.updateConnectionStatus?.(status, isConnected);
+    this.updateUI();
+  }
+
+  /**
    * Run backtest on historical data
    */
   runBacktest() {
@@ -1125,555 +1384,72 @@ class AdvancedDerivBot {
     let simulatedPnL = 0;
     let simulatedTrades = 0;
     let simulatedWins = 0;
+    const backtestStats = { wins: 0, losses: 0, totalPnL: 0 };
 
     trades.forEach((trade, i) => {
-      if (i < 26) return;
+      if (i < 26) return; // Skip initial trades for indicator warm-up
       this.candleManager.addHistoricalTick(this.config.symbol, {
         price: trade.price || this.currentPrice,
         time: new Date(trade.timestamp),
         volume: this.estimateVolume(trade.price || this.currentPrice),
       });
+
       const candles = this.candleManager.getCandles(this.config.symbol);
-      this.indicatorManager.updateIndicators(candles);
-      const signal = this.getTradeSignal(this.config.symbol);
-      if (signal.shouldTrade) {
-        simulatedTrades++;
-        const indicators = this.indicatorManager.getIndicators();
-        const slippage = indicators.volatility * 0.01;
-        const fee = this.currentStake * 0.01;
-        const outcome = trade.result;
-        const simulatedStake = parseFloat(this.calculateOptimalStake().toFixed(1));
-        const profit = outcome === 'win' ? simulatedStake * 0.85 - fee : -simulatedStake - fee;
-        simulatedPnL += profit;
-        if (outcome === 'win') simulatedWins++;
-        this.log(`Backtest trade: ${signal.tradeType} - ${outcome}, P&L: $${profit.toFixed(2)}`, 'info');
-      }
-    });
+      if (candles.length >= 14) {
+        this.indicatorManager.updateIndicators(candles);
+        const signal = this.getTradeSignal(this.config.symbol);
+        if (signal.shouldTrade) {
+          simulatedTrades++;
+          const indicators = this.indicatorManager.getIndicators();
+          const slippage = indicators.volatility * 0.01;
+          const fee = this.currentStake * 0.01;
+          const simulatedStake = parseFloat(this.calculateOptimalStake().toFixed(1));
 
-    const winRate = simulatedTrades > 0 ? (simulatedWins / simulatedTrades * 100).toFixed(1) : 0;
-    this.log(`Backtest completed: ${simulatedTrades} trades, ${winRate}% win rate, P&L: $${simulatedPnL.toFixed(2)}`, 'success');
-  }
+          // Simulate trade outcome based on historical data
+          const outcome = trade.result;
+          const simulatedPnl = outcome === 'win' ? simulatedStake * (0.85 - fee - slippage) : -simulatedStake;
 
-  /**
-   * Start automated trading
-   */
-  startTrading() {
-    if (!this.isConnected) {
-      this.log('Please connect to Deriv first', 'error');
-      return;
-    }
-
-    if (!this.apiToken) {
-      this.log('Please enter your API token', 'error');
-      return;
-    }
-
-    this.isTrading = true;
-    this.isPaused = false;
-    this.pauseExtensions = 0;
-    this.updateConfig();
-
-    document.getElementById('start-btn').disabled = true;
-    document.getElementById('stop-btn').disabled = false;
-
-    this.log(`Trading started with ${this.config.strategy} strategy`, 'success');
-    this.log(`Risk Management: Max Loss: $${this.config.maxLoss}, Max Profit: $${this.config.maxProfit}, Max Drawdown: ${this.config.maxDrawdown}%`, 'info');
-  }
-
-  /**
-   * Stop automated trading
-   */
-  stopTrading() {
-    this.isTrading = false;
-    this.isPaused = false;
-    this.pauseExtensions = 0;
-    document.getElementById('start-btn').disabled = false;
-    document.getElementById('stop-btn').disabled = true;
-
-    const winRate = this.totalTrades > 0 ? (this.wins / this.totalTrades * 100).toFixed(1) : 0;
-    this.log('Trading stopped', 'warning');
-    this.log(`Session Summary: ${this.totalTrades} trades, ${winRate}% win rate, P&L: $${this.totalPnL.toFixed(2)}`, 'info');
-  }
-
-  /**
-   * Reset trading statistics
-   */
-  resetStats() {
-    this.totalTrades = 0;
-    this.wins = 0;
-    this.losses = 0;
-    this.currentStreak = 0;
-    this.totalPnL = 0;
-    this.currentStake = parseFloat(this.initialStake.toFixed(1));
-    this.lastTradeResult = null;
-    this.consecutiveLosses = 0;
-    this.historicalData = [];
-    this.strategyStats = {};
-    this.pauseExtensions = 0;
-
-    this.updateUI();
-    this.log('Statistics reset', 'info');
-  }
-
-  /**
-   * Update connection status UI
-   * @param {string} status - Connection status message
-   * @param {boolean} connected - Connection state
-   */
-  updateConnectionStatus(status, connected) {
-    try {
-      const statusElement = document.getElementById('connection-status');
-      const indicator = document.getElementById('status-indicator');
-
-      if (statusElement) {
-        statusElement.textContent = status;
-        this.log(`Connection status updated: ${status}`, 'debug');
-      } else {
-        this.log('Error: Connection status element not found', 'error');
-      }
-
-      if (indicator) {
-        indicator.classList.toggle('connected', connected);
-      } else {
-        this.log('Error: Status indicator element not found', 'error');
-      }
-    } catch (error) {
-      this.log(`Error updating connection status: ${error.message}`, 'error');
-    }
-  }
-
-  /**
-   * Update UI with current trading statistics and market data
-   */
-  updateUI() {
-    try {
-      const indicators = this.indicatorManager.getIndicators();
-      const pattern = this.candleManager.detectPattern(this.config.symbol);
-      const candles = this.candleManager.getCandles(this.config.symbol);
-      const latestCandle = candles[candles.length - 1] || {};
-
-      const recentCandles = candles.slice(-10);
-      const volatilityTrend = recentCandles.length >= 2 ?
-        (indicators.volatility > this.indicatorManager.calculateVolatility(recentCandles.slice(0, -1)) ? 'Rising' : 'Falling') : 'Stable';
-
-      const elements = {
-        'total-trades': this.totalTrades,
-        'wins': this.wins,
-        'losses': this.losses,
-        'win-rate': `${this.totalTrades > 0 ? (this.wins / this.totalTrades * 100).toFixed(1) : 0}%`,
-        'current-streak': this.currentStreak,
-        'total-pnl': `$${this.totalPnL.toFixed(2)}`,
-        'balance': `$${this.balance.toFixed(2)}`,
-        'last-trade': this.lastTradeResult || '-',
-        'current-price': this.currentPrice.toFixed(5),
-        'rsi-value': indicators.rsi.toFixed(2),
-        'ma-value': indicators.movingAverage.toFixed(5),
-        'volatility-value': `${indicators.volatility.toFixed(2)}%`,
-        'bollinger-upper': indicators.bollingerBands.upper.toFixed(5),
-        'bollinger-middle': indicators.bollingerBands.middle.toFixed(5),
-        'bollinger-lower': indicators.bollingerBands.lower.toFixed(5),
-        'macd-line': indicators.macd.line.toFixed(5),
-        'macd-signal': indicators.macd.signal.toFixed(5),
-        'macd-histogram': indicators.macd.histogram.toFixed(5),
-        'stochastic-k': indicators.stochastic.k.toFixed(2),
-        'stochastic-d': indicators.stochastic.d.toFixed(2),
-        'adx-value': indicators.adx.toFixed(2),
-        'obv-value': indicators.obv.toFixed(2),
-        'sentiment-value': indicators.sentiment.toFixed(2),
-        'candle-pattern': pattern || 'None',
-        'candle-open': latestCandle.open ? latestCandle.open.toFixed(5) : '-',
-        'candle-high': latestCandle.high ? latestCandle.high.toFixed(5) : '-',
-        'candle-low': latestCandle.low ? latestCandle.low.toFixed(5) : '-',
-        'candle-close': latestCandle.close ? latestCandle.close.toFixed(5) : '-',
-        'news-event': this.checkMarketConditions() ? this.newsEvents.find((event) => {
-          const now = new Date();
-          const hour = now.getUTCHours();
-          const minute = now.getUTCMinutes();
-          const startTime = event.hour * 60 + event.minute;
-          const endTime = startTime + event.duration;
-          const currentTime = hour * 60 + minute;
-          return currentTime >= startTime && currentTime <= endTime;
-        })?.description || 'None' : 'None',
-        'volatility-spike': this.detectVolatilitySpike() ? 'Yes' : 'No',
-        'volatility-trend': volatilityTrend,
-        'market-trend': this.detectMarketTrend(),
-      };
-
-      Object.entries(elements).forEach(([id, value]) => {
-        const element = document.getElementById(id);
-        if (element) {
-          element.textContent = value;
-        } else {
-          this.log(`Error: UI element '${id}' not found`, 'error');
-        }
-      });
-
-      const totalPnLElement = document.getElementById('total-pnl');
-      if (totalPnLElement) {
-        totalPnLElement.className = `stat-value ${this.totalPnL >= 0 ? 'profit' : 'loss'}`;
-      } else {
-        this.log('Error: Total PnL element not found', 'error');
-      }
-
-      const strategyBody = document.getElementById('strategy-stats-body');
-      if (strategyBody) {
-        strategyBody.innerHTML = '';
-        Object.entries(this.strategyStats).forEach(([strategy, stats]) => {
-          const total = stats.wins + stats.losses;
-          const winRate = total > 0 ? (stats.wins / total * 100).toFixed(1) : 0;
-          const row = document.createElement('tr');
-          row.innerHTML = `
-            <td>${strategy}</td>
-            <td>${stats.wins}</td>
-            <td>${stats.losses}</td>
-            <td>${winRate}%</td>
-          `;
-          strategyBody.appendChild(row);
-        });
-      } else {
-        this.log('Error: Strategy stats table body not found', 'error');
-      }
-
-      const correlationBody = document.getElementById('correlation-body');
-      if (correlationBody) {
-        correlationBody.innerHTML = '';
-        this.indicatorManager.getCorrelations().forEach((value, pair) => {
-          const row = document.createElement('tr');
-          row.innerHTML = `
-            <td>${pair}</td>
-            <td>${value.toFixed(2)}</td>
-          `;
-          correlationBody.appendChild(row);
-        });
-      } else {
-        this.log('Error: Correlation table body not found', 'error');
-      }
-    } catch (error) {
-      this.log(`UI update error: ${error.message}`, 'error');
-    }
-  }
-
-  /**
-   * Log messages to UI
-   * @param {string} message - Log message
-   * @param {string} type - Log type (info, success, warning, error, debug)
-   */
-  log(message, type = 'info') {
-    if (type === 'debug' && !this.debugMode) return;
-
-    const logContainer = document.getElementById('log-content');
-    if (!logContainer) {
-      console.warn(`Log container not found: ${message}`);
-      return;
-    }
-
-    const logEntry = document.createElement('div');
-    logEntry.className = `log-entry ${type}`;
-    logEntry.innerHTML = `
-      <span class="log-timestamp">${new Date().toLocaleTimeString()}</span>
-      ${message}
-    `;
-
-    logContainer.appendChild(logEntry);
-    logContainer.scrollTop = logContainer.scrollHeight;
-
-    const entries = logContainer.querySelectorAll('.log-entry');
-    if (entries.length > 100) entries[0].remove();
-  }
-
-  /**
-   * Clear log messages
-   */
-  clearLog() {
-    const logContainer = document.getElementById('log-content');
-    if (logContainer) {
-      logContainer.innerHTML = '';
-      this.log('Log cleared', 'info');
-    } else {
-      this.log('Error: Log container not found', 'error');
-    }
-  }
-
-  /**
-   * Send message to WebSocket with validation and queuing
-   * @param {Object} message - Message to send
-   */
-  sendMessage(message) {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      this.log('Cannot send message: WebSocket not connected', 'error');
-      this.tradeQueue.push(message);
-      return;
-    }
-
-    if (!message.req_id) {
-      message.req_id = this.generateReqId();
-    }
-
-    this.tradeQueue.push(message);
-    this.processQueue();
-  }
-
-  /**
-   * Process queued messages with rate limiting
-   */
-  processQueue() {
-    if (this.tradeQueue.length === 0 || this.isProcessingQueue) return;
-
-    this.isProcessingQueue = true;
-    const message = this.tradeQueue.shift();
-
-    try {
-      this.ws.send(JSON.stringify(message));
-      this.log(`Sent request with req_id: ${message.req_id}`, 'debug');
-    } catch (error) {
-      this.log(`Failed to send message: ${error.message}`, 'error');
-      this.tradeQueue.unshift(message);
-    }
-
-    setTimeout(() => {
-      this.isProcessingQueue = false;
-      this.processQueue();
-    }, 100);
-  }
-
-  /**
-   * Generate unique request ID as an integer
-   * @returns {number} Unique request ID
-   */
-  generateReqId() {
-    const reqId = this.requestIdCounter++;
-    if (this.requestIdCounter > Number.MAX_SAFE_INTEGER) {
-      this.requestIdCounter = 1;
-    }
-    return reqId;
-  }
-
-  /**
-   * Detect if a volatility spike is occurring
-   * @returns {boolean} Whether a volatility spike is detected
-   */
-  detectVolatilitySpike() {
-    const indicators = this.indicatorManager.getIndicators();
-    return indicators.volatility > 3;
-  }
-
-  /**
-   * Detect current market trend
-   * @returns {string} Market trend (uptrend, downtrend, sideways)
-   */
-  detectMarketTrend() {
-    const candles = this.candleManager.getCandles(this.config.symbol);
-    if (candles.length < 20) return 'sideways';
-
-    const recent = candles.slice(-10).map((c) => c.close);
-    const older = candles.slice(-20, -10).map((c) => c.close);
-
-    const recentAvg = recent.reduce((a, b) => a + b, 0) / recent.length;
-    const olderAvg = older.reduce((a, b) => a + b, 0) / older.length;
-    const trendStrength = Math.abs(recentAvg - olderAvg) / olderAvg * 100;
-
-    return trendStrength < 0.1 ? 'sideways' :
-           recentAvg > olderAvg ? 'uptrend' : 'downtrend';
-  }
-
-  /**
-   * Calculate optimal stake size using Kelly Criterion
-   * @returns {number} Optimal stake amount
-   */
-  calculateOptimalStake() {
-    const winRate = this.totalTrades > 0 ? this.wins / this.totalTrades : 0.5;
-    const avgWin = this.wins > 0 ? this.totalPnL / this.wins : 0.85;
-    const avgLoss = this.losses > 0 ? Math.abs(this.totalPnL) / this.losses : 1;
-
-    const kellyFraction = (winRate * avgWin - (1 - winRate) * avgLoss) / avgWin;
-    return parseFloat(Math.max(0.35, Math.min(this.balance * kellyFraction * 0.1, 10)).toFixed(1));
-  }
-
-  /**
-   * Update strategy performance statistics
-   * @param {string} strategy - Strategy name
-   * @param {string} result - Trade result (win/loss)
-   */
-  updateStrategyStats(strategy, result) {
-    if (!this.strategyStats[strategy]) {
-      this.strategyStats[strategy] = { wins: 0, losses: 0, recentTrades: [] };
-    }
-    this.strategyStats[strategy][result === 'win' ? 'wins' : 'losses']++;
-    this.strategyStats[strategy].recentTrades.push(result);
-    if (this.strategyStats[strategy].recentTrades.length > 20) {
-      this.strategyStats[strategy].recentTrades.shift();
-    }
-  }
-
-  /**
-   * Select the best strategy based on historical performance
-   * @returns {string} Best strategy
-   */
-  selectBestStrategy() {
-    const strategies = ['martingale', 'dalembert', 'trend-follow', 'mean-reversion', 'rsi-strategy', 'grid', 'arbitrage', 'ml-based', 'custom'];
-    let bestStrategy = this.config.strategy;
-    let bestScore = -Infinity;
-
-    strategies.forEach((strategy) => {
-      const stats = this.strategyStats[strategy] || { wins: 0, losses: 0, recentTrades: [] };
-      const totalTrades = stats.wins + stats.losses;
-      if (totalTrades < 10) return;
-
-      const recentWins = stats.recentTrades.filter((r) => r === 'win').length;
-      const recentWeight = 2;
-      const winRate = ((stats.wins + recentWins * recentWeight) / (totalTrades + stats.recentTrades.length * recentWeight)) * 100;
-
-      if (winRate > bestScore) {
-        bestScore = winRate;
-        bestStrategy = strategy;
-      }
-    });
-
-    if (bestStrategy !== this.config.strategy && bestScore > 40) {
-      this.log(`Switching to better strategy: ${bestStrategy} (Win rate: ${bestScore.toFixed(1)}%)`, 'info');
-      return bestStrategy;
-    }
-    return this.config.strategy;
-  }
-
-  /**
-   * Check market conditions for news and volatility spikes
-   * @returns {boolean} Whether conditions are unfavorable
-   */
-  checkMarketConditions() {
-    const now = new Date();
-    const hour = now.getUTCHours();
-    const minute = now.getUTCMinutes();
-
-    const isNewsEvent = this.newsEvents.some((event) => {
-      const startTime = event.hour * 60 + event.minute;
-      const endTime = startTime + event.duration;
-      const currentTime = hour * 60 + minute;
-      return currentTime >= startTime && currentTime <= endTime;
-    });
-
-    if (isNewsEvent) {
-      const event = this.newsEvents.find((event) => {
-        const startTime = event.hour * 60 + event.minute;
-        const endTime = startTime + event.duration;
-        const currentTime = hour * 60 + minute;
-        return currentTime >= startTime && currentTime <= endTime;
-      });
-      this.log(`Avoiding trade during ${event.description}`, 'warning');
-      return true;
-    }
-
-    if (this.detectVolatilitySpike()) {
-      this.log('Avoiding trade due to volatility spike', 'warning');
-      return true;
-    }
-
-    return false;
-  }
-
-  /**
-   * Optimize strategy parameters periodically
-   */
-  optimizeStrategy() {
-    this.log('Running strategy optimization...', 'info');
-    // Placeholder for future optimization logic
-    // Could analyze historicalData for parameter tuning
-  }
-}
-
-/**
- * Initialize bot and setup global event listeners
- */
-document.addEventListener('DOMContentLoaded', () => {
-  try {
-    window.derivBot = new AdvancedDerivBot();
-    window.derivBot.log('DOM fully loaded, bot initialized', 'debug');
-
-    setInterval(() => {
-      if (window.derivBot) {
-        try {
-          localStorage.setItem('derivBotConfig', JSON.stringify(window.derivBot.config));
-          window.derivBot.log('Configuration saved to localStorage', 'debug');
-        } catch (error) {
-          window.derivBot.log(`Error saving config to localStorage: ${error.message}`, 'error');
-        }
-      }
-    }, 30000);
-
-    const savedConfig = localStorage.getItem('derivBotConfig');
-    if (savedConfig) {
-      try {
-        const config = JSON.parse(savedConfig);
-        Object.assign(window.derivBot.config, config);
-
-        const updateConfigElement = (id, value) => {
-          const element = document.getElementById(id);
-          if (element) element.value = value;
-          else window.derivBot.log(`Error: Config element '${id}' not found`, 'error');
-        };
-
-        const updateConfigCheckbox = (id, value) => {
-          const element = document.getElementById(id);
-          if (element) element.checked = value !== false;
-          else window.derivBot.log(`Error: Checkbox element '${id}' not found`, 'error');
-        };
-
-        const updateConfigMultiSelect = (id, values) => {
-          const element = document.getElementById(id);
-          if (element) {
-            Array.from(element.options).forEach((option) => {
-              option.selected = values.includes(option.value);
-            });
+          simulatedPnL += simulatedPnl;
+          if (outcome === 'win') {
+            simulatedWins++;
+            backtestStats.wins++;
           } else {
-            window.derivBot.log(`Error: Multi-select element '${id}' not found`, 'error');
+            backtestStats.losses++;
           }
-        };
+          backtestStats.totalPnL += simulatedPnl;
 
-        updateConfigElement('strategy-select', config.strategy || 'martingale');
-        updateConfigMultiSelect('symbols', config.symbols || ['R_10']);
-        updateConfigElement('trade-type', config.tradeType || 'CALL');
-        updateConfigElement('duration', config.duration || 60);
-        updateConfigElement('stake', config.initialStake || 1);
-        updateConfigElement('max-loss', config.maxLoss || 50);
-        updateConfigElement('max-profit', config.maxProfit || 100);
-        updateConfigElement('max-trades', config.maxTrades || 50);
-        updateConfigElement('multiplier', config.multiplier || 2.1);
-        updateConfigElement('max-drawdown', config.maxDrawdown || 20);
-        updateConfigElement('max-consecutive-losses', config.maxConsecutiveLosses || 5);
-        updateConfigElement('cooldown-period', config.cooldownPeriod || 300000);
-        updateConfigElement('position-sizing', config.positionSizing || 'kelly');
-        updateConfigElement('fixed-fraction', config.fixedFraction || 0.02);
-        updateConfigElement('custom-strategy-rules', JSON.stringify(config.customStrategyRules || []));
-        updateConfigCheckbox('multi-timeframe', config.useMultiTimeframe);
-        updateConfigCheckbox('dynamic-switching', config.useDynamicSwitching);
-        updateConfigCheckbox('stop-loss-enabled', config.stopLossEnabled);
-        updateConfigCheckbox('take-profit-enabled', config.takeProfitEnabled);
-        updateConfigCheckbox('use-candle-patterns', config.useCandlePatterns);
-        updateConfigElement('candle-timeframe', config.candleTimeframe || 60);
-        updateConfigElement('chart-type', config.chartType || 'line');
-
-        window.derivBot.log('Configuration loaded from saved settings', 'info');
-      } catch (error) {
-        console.error('Error loading saved configuration:', error);
-        window.derivBot.log(`Error loading saved configuration: ${error.message}`, 'error');
+          const tradeData = {
+            id: `backtest_${Date.now()}_${i}`,
+            symbol: this.config.symbol,
+            result: outcome,
+            pnl: parseFloat(simulatedPnl.toFixed(2)),
+            stake: simulatedStake,
+            contractType: signal.tradeType,
+            duration: this.predictDuration(),
+            indicators: {
+              rsi: indicators.rsi,
+              macd: indicators.macd.histogram,
+              volatility: indicators.volatility,
+            },
+            timestamp: new Date().toISOString(),
+          };
+          saveData('backtest_trades', tradeData);
+        }
       }
-    }
+    });
 
-    setInterval(() => {
-      if (window.derivBot && window.derivBot.isTrading) {
-        window.derivBot.optimizeStrategy();
-      }
-    }, 60000);
-  } catch (error) {
-    console.error('Error initializing bot:', error);
-    if (window.derivBot) {
-      window.derivBot.log(`Error initializing bot: ${error.message}`, 'error');
-    } else {
-      console.error('Failed to initialize derivBot:', error);
-    }
+    const winRate = simulatedTrades > 0 ? (simulatedWins / simulatedTrades) * 100 : 0;
+    this.log(`Backtest completed: ${simulatedTrades} trades, ${simulatedWins} wins, ${winRate.toFixed(1)}% win rate, Total PnL: $${simulatedPnL.toFixed(2)}`, 'info');
+    window.updateBacktestResults?.({
+      totalTrades: simulatedTrades,
+      wins: simulatedWins,
+      losses: simulatedTrades - simulatedWins,
+      winRate: winRate.toFixed(1),
+      totalPnL: simulatedPnL.toFixed(2),
+      stats: backtestStats,
+    });
   }
-});
-
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = AdvancedDerivBot;
 }
+
+// Instantiate and expose bot globally
+window.derivBot = new AdvancedDerivBot();
